@@ -140,7 +140,9 @@ fun GuideGrid(
     val nowColor = MaterialTheme.colorScheme.error
     val density = LocalDensity.current
     val channelPx = with(density) { metrics.channelWidth.toPx() }
-    val linePx = with(density) { 2.dp.toPx() }
+    val linePx = with(density) { 1.dp.toPx() }
+    val markerPx = with(density) { 4.dp.toPx() }
+    val rulerPx = with(density) { metrics.rulerHeight.toPx() }
     Column(
         modifier
             .fillMaxSize()
@@ -149,11 +151,12 @@ fun GuideGrid(
             .scrollable(scroll.scrollable, Orientation.Horizontal)
             .drawWithContent {
                 drawContent()
-                // "Now" line over the ruler and all rows; drawn here so it costs no layout or composition.
+                // "Now" marker in the ruler and a thin, translucent line down the rows, so programme titles under
+                // it stay readable. Drawn here so it costs no layout or composition.
                 val x = channelPx + scroll.axis.xOf(nowMs) - scroll.scrollPx
                 if (x >= channelPx && x <= size.width) {
-                    drawLine(nowColor, Offset(x, 0f), Offset(x, size.height), strokeWidth = linePx)
-                    drawCircle(nowColor, radius = linePx * 2.5f, center = Offset(x, linePx * 2.5f))
+                    drawLine(nowColor.copy(alpha = NOW_LINE_ALPHA), Offset(x, rulerPx), Offset(x, size.height), strokeWidth = linePx)
+                    drawCircle(nowColor, radius = markerPx, center = Offset(x, rulerPx - markerPx))
                 }
             },
     ) {
@@ -220,6 +223,7 @@ private fun TimeRuler(scroll: GuideScrollState, labels: TimeLabels, modifier: Mo
 }
 
 private const val TICK_STEP_MS = 30 * 60_000L
+private const val NOW_LINE_ALPHA = 0.55f
 
 @Composable
 private fun GuideRow(
