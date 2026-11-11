@@ -3,6 +3,8 @@ package rocks.urzahil.iptv.sync
 import rocks.urzahil.iptv.core.epg.NameNormalizer
 import rocks.urzahil.iptv.core.epg.ProgrammeId
 import rocks.urzahil.iptv.core.io.Compression
+import rocks.urzahil.iptv.core.io.InputLimitException
+import rocks.urzahil.iptv.core.io.XmlGuardInputStream
 import rocks.urzahil.iptv.core.model.ParsedEpgChannel
 import rocks.urzahil.iptv.core.model.ParsedProgramme
 import rocks.urzahil.iptv.core.util.Redactor
@@ -21,6 +23,8 @@ import rocks.urzahil.iptv.data.security.SourceSecrets
 import rocks.urzahil.iptv.data.settings.AppSettings
 import java.io.File
 import java.io.IOException
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.locks.ReentrantLock
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.ensureActive
 import okhttp3.OkHttpClient
@@ -67,6 +71,7 @@ class EpgImporter(
             val dl = downloader.download(
                 client, url, headers,
                 if (force) null else es.etag, if (force) null else es.lastModified, file,
+                maxBytes = Downloader.EPG_MAX_BYTES,
             )
             when (dl) {
                 is DownloadResult.NotModified -> {
@@ -90,6 +95,10 @@ class EpgImporter(
         } catch (e: EpgImportException) {
             fail(es.id, owner.id, e.message)
             throw e
+        } catch (e: InputLimitException) {
+            // A hostile or broken file: trying again would only repeat the work.
+            fail(es.id, owner.id, e.message)
+            throw EpgImportException(e.message ?: "Guide file is malformed", retryable = false)
         } catch (e: IOException) {
             val msg = redactor.redact(e)
             fail(es.id, owner.id, msg)
@@ -104,7 +113,12 @@ class EpgImporter(
         db.sourceDao().setEpgResult(ownerId, System.currentTimeMillis(), message)
     }
 
-    /** Parses [file] into staging and swaps. Exposed for tests. */
+    /**
+     * Parses [file] into staging and swaps. Exposed for tests.
+     *
+     * The staging tables are shared by all EPG sources, and WorkManager runs one job per source in parallel, so
+     * the whole staging section (clear, fill, swap) runs under [STAGING_LOCK]: one import at a time.
+     */
     fun importFile(
         epgSourceId: Long,
         ownerId: Long,
@@ -113,6 +127,30 @@ class EpgImporter(
         nowMs: Long,
         job: Job? = null,
         onProgress: (Int) -> Unit = {},
+    ): EpgImportResult.Imported {
+        // Wait for the lock in short steps so a cancelled job does not sit in the queue.
+        while (!STAGING_LOCK.tryLock(LOCK_POLL_MS, TimeUnit.MILLISECONDS)) job?.ensureActive()
+        try {
+            return importLocked(epgSourceId, ownerId, file, settings, nowMs, job, onProgress)
+        } finally {
+            try {
+                // A failed or cancelled import must not leave its half-written rows behind.
+                db.programmeDao().clearStaging()
+                db.programmeDao().clearDetailsStaging()
+            } catch (_: Exception) {
+            }
+            STAGING_LOCK.unlock()
+        }
+    }
+
+    private fun importLocked(
+        epgSourceId: Long,
+        ownerId: Long,
+        file: File,
+        settings: AppSettings,
+        nowMs: Long,
+        job: Job?,
+        onProgress: (Int) -> Unit,
     ): EpgImportResult.Imported {
         val epgDao = db.epgDao()
         val progDao = db.programmeDao()
@@ -174,7 +212,8 @@ class EpgImporter(
                 wantedNames = wanted.names,
             ),
         )
-        val parsed = Compression.open(file.inputStream().buffered(BUFFER)).use { input ->
+        // The guard bounds what the platform XML parser would buffer for one text node (and the decoded size).
+        val parsed = XmlGuardInputStream(Compression.open(file.inputStream().buffered(BUFFER))).use { input ->
             parser.parse(
                 input,
                 onChannel = { c: ParsedEpgChannel ->
@@ -270,6 +309,9 @@ class EpgImporter(
     }
 
     private companion object {
+        /** Process-wide: there is one database and one pair of staging tables. */
+        val STAGING_LOCK = ReentrantLock()
+        const val LOCK_POLL_MS = 200L
         const val BATCH = 2000
         const val CHANNEL_BATCH = 500
         const val BUFFER = 64 * 1024
