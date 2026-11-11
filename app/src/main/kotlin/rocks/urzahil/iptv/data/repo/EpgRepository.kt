@@ -40,6 +40,11 @@ class EpgRepository(private val db: AppDatabase) {
             out
         }
 
+    /** One programme by its deterministic id, with tvg-shift applied. */
+    suspend fun programme(programmeId: Long, shiftMin: Int): ProgrammeLite? = db.withTransaction {
+        dao.byId(programmeId)?.let { if (shiftMin == 0) it else it.copy(startMs = it.startMs + shiftMin * 60_000L, endMs = it.endMs + shiftMin * 60_000L) }
+    }
+
     suspend fun details(programmeId: Long): ProgrammeDetailsEntity? = db.withTransaction { dao.details(programmeId) }
 
     private fun query(epgChannelId: Long, shiftMin: Int, fromMs: Long, toMs: Long): List<ProgrammeLite> {

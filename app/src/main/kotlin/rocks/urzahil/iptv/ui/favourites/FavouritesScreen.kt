@@ -69,7 +69,8 @@ fun FavouritesScreen(
         } else {
             LazyColumn(Modifier.padding(padding)) {
                 if (favourites.isNotEmpty()) {
-                    item(key = "h-fav") { SectionHeader("Favourites") }
+                    // The top bar already says "Favourites": only label the list when a second section follows.
+                    if (recents.isNotEmpty()) item(key = "h-fav") { SectionHeader("Favourites") }
                     items(favourites, key = { "f${it.id}" }) { ch ->
                         ChannelRow(ch, nowNext[ch.id], nowMs, { onPlayChannel(ch.id, null) }, { vm.toggleFavourite(ch.id) })
                     }

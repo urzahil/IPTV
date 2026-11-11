@@ -20,6 +20,9 @@ android {
         targetSdk = 36
         versionCode = appVersionCode
         versionName = "0.1.0"
+
+        // One APK, ARM only: libVLC and the FFmpeg decoder are the bulk of the size.
+        ndk { abiFilters += listOf("armeabi-v7a", "arm64-v8a") }
     }
 
     signingConfigs {

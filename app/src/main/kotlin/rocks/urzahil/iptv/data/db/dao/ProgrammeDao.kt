@@ -14,6 +14,9 @@ interface ProgrammeDao {
     @Query("SELECT id, startMs, endMs, title, flags FROM programmes WHERE id BETWEEN :lo AND :hi AND endMs > :t0 ORDER BY id")
     fun range(lo: Long, hi: Long, t0: Long): List<ProgrammeLite>
 
+    @Query("SELECT id, startMs, endMs, title, flags FROM programmes WHERE id = :id")
+    fun byId(id: Long): ProgrammeLite?
+
     @Query("SELECT * FROM programme_details WHERE programmeId = :id")
     fun details(id: Long): ProgrammeDetailsEntity?
 

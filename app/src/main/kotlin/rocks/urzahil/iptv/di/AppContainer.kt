@@ -6,6 +6,7 @@ import rocks.urzahil.iptv.data.db.AppDatabase
 import rocks.urzahil.iptv.data.net.ContentSource
 import rocks.urzahil.iptv.data.net.Downloader
 import rocks.urzahil.iptv.data.net.HttpClientFactory
+import rocks.urzahil.iptv.data.repo.ChannelPrefsRepository
 import rocks.urzahil.iptv.data.repo.ChannelRepository
 import rocks.urzahil.iptv.data.repo.EpgRepository
 import rocks.urzahil.iptv.data.repo.SourceRepository
@@ -38,6 +39,7 @@ class AppContainer(private val context: Context) {
     val sourceRepository by lazy { SourceRepository(db, secrets, http.client, redactor, contentSource, settings) }
     val channelRepository by lazy { ChannelRepository(db) }
     val epgRepository by lazy { EpgRepository(db) }
+    val channelPrefs by lazy { ChannelPrefsRepository(db.channelPrefDao()) }
     val streamInputs by lazy { StreamInputsRepository(db, secrets, settings) }
 
     val playlistSyncRunner by lazy { PlaylistSyncRunner(db, http.client, downloader, secrets, redactor, contentSource, cacheDir) }

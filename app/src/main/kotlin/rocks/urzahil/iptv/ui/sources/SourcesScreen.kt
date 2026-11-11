@@ -222,7 +222,10 @@ private fun typeLabel(s: SourceEntity) = when (s.sourceType) {
 
 private fun statusLine(s: SourceEntity): String = when (s.status) {
     SourceEntity.STATUS_NEW -> "Waiting for first import"
-    SourceEntity.STATUS_OK -> "${s.lastSummary ?: "${s.channelCount} channels"} · updated ${formatAgo(s.lastPlaylistSyncMs)}"
+    SourceEntity.STATUS_OK -> "${s.lastSummary ?: "${s.channelCount} channels"} · ${noBreak("updated ${formatAgo(s.lastPlaylistSyncMs)}")}"
     SourceEntity.STATUS_NEEDS_CREDENTIALS -> "Credentials need to be re-entered"
-    else -> "Last update failed" + if (s.lastPlaylistSyncMs > 0) " (last success ${formatAgo(s.lastPlaylistSyncMs)})" else ""
+    else -> "Last update failed" + if (s.lastPlaylistSyncMs > 0) " (${noBreak("last success ${formatAgo(s.lastPlaylistSyncMs)}")})" else ""
 }
+
+/** Keeps a short phrase on one line ("updated 25 minutes ago" must not leave "ago" alone). */
+private fun noBreak(text: String) = text.replace(' ', '\u00A0')

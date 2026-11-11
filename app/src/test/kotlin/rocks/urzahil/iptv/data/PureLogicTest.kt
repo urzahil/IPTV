@@ -50,4 +50,10 @@ class PureLogicTest {
         assertThat(EpgSourceManager.display("http://u:p@host.tv/epg/guide.xml.gz?token=abc")).isEqualTo("host.tv/epg/guide.xml.gz")
         assertThat(EpgSourceManager.hash("http://a")).hasLength(64)
     }
+
+    @Test fun pastDaysRangeIsZeroToSeven() {
+        assertThat(rocks.urzahil.iptv.data.settings.AppSettings.MAX_PAST_DAYS).isEqualTo(7)
+        assertThat(rocks.urzahil.iptv.data.settings.AppSettings().epgPastDays).isAtMost(7)
+        assertThat(30.coerceIn(rocks.urzahil.iptv.data.settings.AppSettings.MIN_PAST_DAYS, rocks.urzahil.iptv.data.settings.AppSettings.MAX_PAST_DAYS)).isEqualTo(7)
+    }
 }
