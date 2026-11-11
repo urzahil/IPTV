@@ -35,10 +35,13 @@ class PlayerActivity : ComponentActivity() {
     private val controller get() = appContainer.playback
     private lateinit var pip: PipController
     private var inPip by mutableStateOf(false)
-    private var settings = AppSettings()
+    // Compose state: the player screen reads it (swipe direction), the lifecycle callbacks read it too.
+    private var settings by mutableStateOf(AppSettings())
+    private var stoppedOnFinish = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        instances.incrementAndGet()
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
         WindowCompat.setDecorFitsSystemWindows(window, false)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -131,20 +134,28 @@ class PlayerActivity : ComponentActivity() {
 
     override fun onPause() {
         super.onPause()
-        // Promote to a foreground service while still in the foreground: it is not allowed from the background.
-        if (!isFinishing && settings.backgroundAudio && controller.engine.value?.kind == EngineKind.MEDIA3) {
+        if (isFinishing) {
+            // Stop now: onDestroy can come seconds later and must not be what ends the audio.
+            stoppedOnFinish = true
+            controller.stopAll()
+        } else if (settings.backgroundAudio && controller.engine.value?.kind == EngineKind.MEDIA3) {
+            // Promote to a foreground service while still in the foreground: it is not allowed from the background.
             PlaybackService.start(this)
         }
     }
 
     override fun onStop() {
         super.onStop()
-        if (!isFinishing) controller.onUiStopped(keepAudio = settings.backgroundAudio)
+        // Audio may only continue in the background when the foreground service is (about to be) up; otherwise
+        // it would play without a notification or controls.
+        if (!isFinishing) controller.onUiStopped(keepAudio = settings.backgroundAudio && PlaybackService.isActiveOrStarting())
     }
 
     override fun onDestroy() {
         pip.unregister()
-        if (isFinishing) controller.stopAll()
+        val others = instances.decrementAndGet()
+        // A late onDestroy of a closed player must not stop what a newer player instance has started since.
+        if (isFinishing && !stoppedOnFinish && others <= 0) controller.stopAll()
         super.onDestroy()
     }
 
@@ -186,6 +197,7 @@ class PlayerActivity : ComponentActivity() {
         const val EXTRA_CATCHUP_PROGRAMME = "catchupProgrammeId"
         const val EXTRA_CATCHUP_START = "catchupStartMs"
         const val EXTRA_CATCHUP_END = "catchupEndMs"
+        private val instances = java.util.concurrent.atomic.AtomicInteger()
         private const val STATE_CHANNEL = "state.channelId"
         private const val STATE_CATEGORY = "state.categoryId"
         private const val STATE_WALL = "state.wallMs"

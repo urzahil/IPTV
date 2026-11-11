@@ -320,6 +320,11 @@ class PlaybackController(
         _ui.update { it.copy(phase = Phase.SUSPENDED, playing = false, pendingSeekMs = null) }
     }
 
+    /** The background-audio service could not go to the foreground: audio without a notification is not allowed. */
+    fun onServiceUnavailable() {
+        if (!_uiVisible.value && _backgroundHold.value) onUiStopped(keepAudio = false)
+    }
+
     /** The player screen was closed by the user: stop everything. */
     fun stopAll() {
         opJob?.cancel(); commitJob?.cancel(); trackCheckJob?.cancel(); tickerJob?.cancel(); tickerJob = null
@@ -329,6 +334,22 @@ class PlaybackController(
         _backgroundHold.value = false
         _guide.value = ProgrammeGuide.EMPTY
         _ui.value = PlayerUiState()
+    }
+
+    /**
+     * Last line of defence for the playback scope: an exception that escaped a coroutine (engine creation failed,
+     * a database error ...) ends playback with an error screen instead of crashing the app. Only the exception
+     * class is logged: messages can contain URLs.
+     */
+    internal fun onCrash(t: Throwable) {
+        AppLog.w(TAG, "playback failed: ${t.javaClass.simpleName}")
+        try {
+            opJob?.cancel(); commitJob?.cancel(); trackCheckJob?.cancel(); tickerJob?.cancel(); tickerJob = null
+            releaseEngine()
+        } catch (_: Throwable) {
+        }
+        _backgroundHold.value = false
+        _ui.update { it.copy(phase = Phase.ERROR, playing = false, pendingSeekMs = null, reconnect = null, error = ErrorInfo(ErrorKind.GENERIC, "Playback failed", null)) }
     }
 
     /** Current wall-clock position, for saving across process death (the activity stores it as a number). */

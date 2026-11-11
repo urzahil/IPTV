@@ -9,6 +9,7 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
+import android.os.SystemClock
 import androidx.annotation.OptIn
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
@@ -59,9 +60,13 @@ class PlaybackService : Service() {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK else 0,
             )
         } catch (e: Exception) {
+            startRequestedAt = 0
             stopSelf()
+            // No foreground service means no notification and no controls: do not leave audio playing unseen.
+            controller.onServiceUnavailable()
             return START_NOT_STICKY
         }
+        running = true
         if (job == null) {
             job = scope.launch {
                 combine(controller.ui, controller.backgroundHold, controller.uiVisible) { ui, hold, visible -> Triple(ui, hold, visible) }
@@ -78,6 +83,8 @@ class PlaybackService : Service() {
     }
 
     private fun stopForegroundAndSelf() {
+        running = false
+        startRequestedAt = 0
         job?.cancel(); job = null
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         stopSelf()
@@ -90,6 +97,7 @@ class PlaybackService : Service() {
     }
 
     override fun onDestroy() {
+        running = false
         scope.cancel()
         super.onDestroy()
     }
@@ -137,16 +145,36 @@ class PlaybackService : Service() {
         const val ACTION_TOGGLE = "rocks.urzahil.iptv.player.TOGGLE"
         const val ACTION_STOP = "rocks.urzahil.iptv.player.STOP"
 
+        /** True while the service is in the foreground (set after startForeground succeeded). */
+        @Volatile
+        var running = false
+            private set
+
+        @Volatile
+        private var startRequestedAt = 0L
+
+        /**
+         * True when the service is running, or was asked to start a moment ago (the start is delivered
+         * asynchronously, so it can still be on its way when the activity stops).
+         */
+        fun isActiveOrStarting(): Boolean =
+            running || (startRequestedAt != 0L && SystemClock.elapsedRealtime() - startRequestedAt < START_GRACE_MS)
+
         fun start(context: Context) {
             try {
                 ContextCompat.startForegroundService(context, Intent(context, PlaybackService::class.java))
+                startRequestedAt = SystemClock.elapsedRealtime()
             } catch (_: Exception) {
                 // Not allowed right now (restricted background state): playback just stops with the screen.
+                startRequestedAt = 0
             }
         }
 
         fun stop(context: Context) {
+            startRequestedAt = 0
             context.stopService(Intent(context, PlaybackService::class.java))
         }
+
+        private const val START_GRACE_MS = 5_000L
     }
 }
