@@ -79,8 +79,18 @@ class GuideViewModel(private val c: AppContainer) : ViewModel() {
         GuideBounds.of(now, past, future, zone)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
-    /** Left-edge time to restore after a configuration change or tab switch. */
-    var savedLeftEdgeMs: Long? = null
+    private var savedLeftEdgeMs: Long? = null
+    private var savedAtMs = 0L
+
+    /** Remembers the time at the left edge across a rotation or a short visit to another tab. */
+    fun saveLeftEdge(timeMs: Long, nowMs: Long = System.currentTimeMillis()) {
+        savedLeftEdgeMs = timeMs
+        savedAtMs = nowMs
+    }
+
+    /** The remembered position, or null when it is stale (the guide then opens at the current time). */
+    fun restoredLeftEdge(nowMs: Long = System.currentTimeMillis()): Long? =
+        savedLeftEdgeMs?.takeIf { nowMs - savedAtMs in 0 until RESTORE_WITHIN_MS }
 
     private val epgSources: Flow<List<EpgSourceEntity>> = currentSource.map { it?.id }.distinctUntilChanged()
         .flatMapLatest { id -> if (id == null) flowOf(emptyList()) else c.sourceRepository.observeEpgSources(id) }
@@ -183,6 +193,7 @@ class GuideViewModel(private val c: AppContainer) : ViewModel() {
     fun retryPlaylist(sourceId: Long) { c.syncScheduler.syncPlaylist(sourceId, manual = true) }
 
     private companion object {
+        const val RESTORE_WITHIN_MS = 10 * 60_000L
         const val FALLBACK_SETTLE_MS = 600L
         const val FALLBACK_MAX_ROWS = 16
     }

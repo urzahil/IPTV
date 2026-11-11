@@ -248,4 +248,15 @@ class ScreenshotTest {
         settle("Default user agent")
         shot("settings")
     }
+
+    /** The guide on a phone held sideways: one filter row (days in a menu) so the grid keeps most of the height. */
+    @Test
+    @Config(qualifiers = "w780dp-h360dp-xxhdpi")
+    fun captureGuideLandscape() {
+        compose.setContent { IptvTheme(dynamicColor = false) { AppNavHost() } }
+        settle("News 24")
+        compose.onNodeWithText("Guide").performClick()
+        settle("World at Noon")
+        shot("guide_landscape")
+    }
 }

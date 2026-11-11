@@ -364,16 +364,20 @@ private fun ProgrammeCellView(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false),
                 )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (status == ProgrammeStatus.PAST_PLAYABLE) {
-                        Icon(
-                            Icons.Filled.History,
-                            contentDescription = "Catchup available",
-                            tint = scheme.tertiary,
-                            modifier = Modifier.padding(end = 4.dp).size(14.dp),
-                        )
+                // Narrow cells keep the title; the catchup badge stays, the times are in the sheet.
+                val wide = pos.widthPx >= with(LocalDensity.current) { MIN_TIME_WIDTH.roundToPx() }
+                if (wide || status == ProgrammeStatus.PAST_PLAYABLE) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (status == ProgrammeStatus.PAST_PLAYABLE) {
+                            Icon(
+                                Icons.Filled.History,
+                                contentDescription = "Catchup available",
+                                tint = scheme.tertiary,
+                                modifier = Modifier.padding(end = 4.dp).size(14.dp),
+                            )
+                        }
+                        if (wide) Text(time, style = MaterialTheme.typography.labelSmall, color = secondary, maxLines = 1, softWrap = false, overflow = TextOverflow.Clip)
                     }
-                    Text(time, style = MaterialTheme.typography.labelSmall, color = secondary, maxLines = 1, softWrap = false, overflow = TextOverflow.Clip)
                 }
             }
         }
@@ -405,4 +409,5 @@ private fun GapCellView(known: Boolean, pos: StripPos, scroll: GuideScrollState)
 }
 
 private val MIN_TEXT_WIDTH = 44.dp
+private val MIN_TIME_WIDTH = 88.dp
 private val MIN_GAP_TEXT_WIDTH = 96.dp

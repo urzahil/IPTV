@@ -1,7 +1,18 @@
 package rocks.urzahil.iptv.ui.guide
 
 import android.text.format.DateFormat
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.IconButton
+import androidx.compose.ui.text.style.TextOverflow
+import rocks.urzahil.iptv.data.db.entities.SourceEntity
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -110,34 +121,30 @@ fun GuideScreen(
 
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { vm.refreshClock() }
 
-    TabScaffold(
-        modifier = modifier,
-        onOpenSettings = onOpenSettings,
-        title = { SourceTitle(sources.orEmpty(), source, vm::selectSource, fallback = "Guide") },
-    ) { padding ->
+    val body: @Composable (Modifier) -> Unit = { bodyModifier ->
         val list = sources
         val src = source
         val b = bounds
         when {
-            list == null || b == null -> LoadingView(Modifier.padding(padding))
+            list == null || b == null -> LoadingView(bodyModifier)
             list.isEmpty() || src == null -> EmptyState(
                 title = "No sources yet",
                 message = "Add an Xtream account or an M3U playlist to see the TV guide.",
                 actionLabel = "Add source",
                 onAction = onAddSource,
-                modifier = Modifier.padding(padding),
+                modifier = bodyModifier,
             )
-            else -> Column(Modifier.padding(padding).fillMaxSize()) {
+            else -> Column(bodyModifier.fillMaxSize()) {
                 val metrics = remember(config.screenWidthDp, config.screenHeightDp) {
                     GuideMetrics.of(config.screenWidthDp, config.screenHeightDp)
                 }
                 val pxPerMinute = with(LocalDensity.current) { metrics.dpPerMinute.dp.toPx() }
                 val axis = remember(b, pxPerMinute) { GuideAxis(b, pxPerMinute) }
                 val scroll = remember {
-                    GuideScrollState(axis, vm.savedLeftEdgeMs ?: (System.currentTimeMillis() - NOW_LEAD_MS))
+                    GuideScrollState(axis, vm.restoredLeftEdge() ?: (System.currentTimeMillis() - NOW_LEAD_MS))
                 }
                 scroll.updateAxis(axis)
-                DisposableEffect(scroll) { onDispose { vm.savedLeftEdgeMs = scroll.leftEdgeMs } }
+                DisposableEffect(scroll) { onDispose { vm.saveLeftEdge(scroll.leftEdgeMs) } }
                 val days = remember(b, nowMs / GuideBounds.HOUR_MS) { GuideDays.build(b, nowMs, vm.zone) }
                 val scope = rememberCoroutineScope()
                 val showGrid = availability == EpgAvailability.Ready && items.itemCount > 0
@@ -153,6 +160,10 @@ fun GuideScreen(
                     showTime = showGrid,
                     onNow = { scope.launch { scroll.scrollToTime(System.currentTimeMillis() - NOW_LEAD_MS) } },
                     onDay = { day -> scope.launch { scroll.scrollToTime(GuideDays.jumpTarget(day, b)) } },
+                    sources = list,
+                    source = src,
+                    onSelectSource = vm::selectSource,
+                    onOpenSettings = onOpenSettings,
                 )
                 when {
                     items.itemCount == 0 -> SourceEmptyState(src, onRetry = { vm.retryPlaylist(src.id) })
@@ -170,6 +181,22 @@ fun GuideScreen(
                 }
             }
         }
+    }
+    if (compactHeight && !sources.isNullOrEmpty()) {
+        // A phone held sideways has little height: no title bar; the source picker and settings share the
+        // filter row so the grid keeps as many rows as possible.
+        Box(
+            modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.surface)
+                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)),
+        ) { body(Modifier) }
+    } else {
+        TabScaffold(
+            modifier = modifier,
+            onOpenSettings = onOpenSettings,
+            title = { SourceTitle(sources.orEmpty(), source, vm::selectSource, fallback = "Guide") },
+        ) { padding -> body(Modifier.padding(padding)) }
     }
 
     sheet?.let { s ->
@@ -263,6 +290,10 @@ private fun GuideFilterBar(
     showTime: Boolean,
     onNow: () -> Unit,
     onDay: (GuideDay) -> Unit,
+    sources: List<SourceEntity>,
+    source: SourceEntity,
+    onSelectSource: (Long) -> Unit,
+    onOpenSettings: () -> Unit,
 ) {
     // The day at the left edge: derived, so the bar recomposes when the day changes, not on every scroll frame.
     val currentDay by remember(days, scroll) { derivedStateOf { GuideDays.dayAt(days, scroll.leftEdgeMs) ?: days.firstOrNull() } }
@@ -287,22 +318,44 @@ private fun GuideFilterBar(
             }
         }
     } else {
-        LazyRow(
-            modifier = Modifier.fillMaxWidth(),
-            contentPadding = PaddingValues(horizontal = Dimens.ScreenPadding, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (showTime) {
-                item(key = "now") { NowChip(onNow) }
-                item(key = "day") { DayMenuChip(days, currentDay, labels, onDay) }
+        Row(Modifier.fillMaxWidth().padding(start = Dimens.ScreenPadding), verticalAlignment = Alignment.CenterVertically) {
+            // Fixed controls first; only the categories scroll.
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (sources.size > 1) SourceMenuChip(sources, source, onSelectSource)
+                if (showTime) {
+                    NowChip(onNow)
+                    DayMenuChip(days, currentDay, labels, onDay)
+                }
             }
-            item(key = "all") {
-                FilterChip(selected = selectedCategory == null, onClick = { onSelectCategory(null) }, label = { Text("All") })
+            LazyRow(
+                modifier = Modifier.weight(1f),
+                contentPadding = PaddingValues(horizontal = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                item(key = "all") {
+                    FilterChip(selected = selectedCategory == null, onClick = { onSelectCategory(null) }, label = { Text("All") })
+                }
+                items(categories, key = { it.id }) { c ->
+                    FilterChip(selected = selectedCategory == c.id, onClick = { onSelectCategory(c.id) }, label = { Text(c.name, maxLines = 1) })
+                }
             }
-            items(categories, key = { it.id }) { c ->
-                FilterChip(selected = selectedCategory == c.id, onClick = { onSelectCategory(c.id) }, label = { Text(c.name, maxLines = 1) })
-            }
+            IconButton(onClick = onOpenSettings) { Icon(Icons.Filled.Settings, contentDescription = "Settings") }
+        }
+    }
+}
+
+@Composable
+private fun SourceMenuChip(sources: List<SourceEntity>, current: SourceEntity, onSelect: (Long) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        AssistChip(
+            onClick = { open = true },
+            label = { Text(current.name, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 140.dp)) },
+            trailingIcon = { Icon(Icons.Filled.ArrowDropDown, contentDescription = "Choose source", modifier = Modifier.size(AssistChipDefaults.IconSize)) },
+        )
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            sources.forEach { s -> DropdownMenuItem(text = { Text(s.name) }, onClick = { open = false; onSelect(s.id) }) }
         }
     }
 }
