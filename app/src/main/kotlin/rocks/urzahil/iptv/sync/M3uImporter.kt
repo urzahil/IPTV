@@ -2,8 +2,10 @@ package rocks.urzahil.iptv.sync
 
 import rocks.urzahil.iptv.core.epg.NameNormalizer
 import rocks.urzahil.iptv.core.io.Compression
+import rocks.urzahil.iptv.core.io.LimitedInputStream
 import rocks.urzahil.iptv.core.m3u.M3uParser
 import rocks.urzahil.iptv.core.model.ParsedChannel
+import rocks.urzahil.iptv.core.util.StreamSchemes
 import rocks.urzahil.iptv.data.db.AppDatabase
 import rocks.urzahil.iptv.data.db.entities.ChannelEntity
 import rocks.urzahil.iptv.data.db.entities.SourceEntity
@@ -38,9 +40,13 @@ class M3uImporter(private val db: AppDatabase) {
     ): PlaylistImportResult {
         val gen = source.syncGen + 1
         val writer = PlaylistWriter(db, source.id, gen)
-        val stats = Compression.open(input).use { stream ->
+        var schemeDropped = 0
+        // The decompressed size is bounded too: a small gzip must not expand into an endless playlist.
+        val stats = LimitedInputStream(Compression.open(input), MAX_DECODED_BYTES, "Playlist is too large").use { stream ->
             M3uParser().parse(stream) { ch ->
                 job?.ensureActive()
+                // Local schemes (file, content, data, android.resource ...) are not stream addresses.
+                if (!StreamSchemes.isAllowed(ch.url)) { schemeDropped++; return@parse }
                 for (g in ch.groups) writer.registerCategory(g, g)
                 writer.add(toEntity(ch, source.id), ch.groups)
                 if (writer.channelCount % PROGRESS_EVERY == 0) onProgress(writer.channelCount)
@@ -51,15 +57,16 @@ class M3uImporter(private val db: AppDatabase) {
             writer.finish()
             db.sourceDao().setPlaylistOk(
                 source.id, gen, System.currentTimeMillis(),
-                PlaylistImportResult(writer.channelCount, writer.categoryCount, stats.skippedVod, stats.dropped, emptyList()).summary,
+                PlaylistImportResult(writer.channelCount, writer.categoryCount, stats.skippedVod, stats.dropped + schemeDropped, emptyList()).summary,
                 writer.channelCount, etag, lastModified,
             )
         }
-        return PlaylistImportResult(writer.channelCount, writer.categoryCount, stats.skippedVod, stats.dropped, stats.header.epgUrls)
+        return PlaylistImportResult(writer.channelCount, writer.categoryCount, stats.skippedVod, stats.dropped + schemeDropped, stats.header.epgUrls)
     }
 
     companion object {
         private const val PROGRESS_EVERY = 500
+        private const val MAX_DECODED_BYTES = 1L * 1024 * 1024 * 1024
 
         fun toEntity(ch: ParsedChannel, sourceId: Long) = ChannelEntity(
             sourceId = sourceId,

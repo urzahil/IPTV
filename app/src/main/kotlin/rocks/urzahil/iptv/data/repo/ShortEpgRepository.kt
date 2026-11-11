@@ -3,13 +3,16 @@ package rocks.urzahil.iptv.data.repo
 import java.io.IOException
 import java.time.ZoneOffset
 import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import rocks.urzahil.iptv.core.model.StreamHeaders
 import rocks.urzahil.iptv.core.xtream.XEpgListing
+import rocks.urzahil.iptv.core.xtream.XtreamException
 import rocks.urzahil.iptv.core.xtream.XtreamParser
 import rocks.urzahil.iptv.core.xtream.XtreamTime
 import rocks.urzahil.iptv.core.xtream.XtreamUrls
@@ -24,7 +27,8 @@ import rocks.urzahil.iptv.util.AppLog
  * Guide fallback for Xtream channels the XMLTV data does not cover: asks the panel for the channel's own
  * programme table. Results (also empty ones and failures) are kept in memory for 30 minutes and at most four
  * requests run at once. The request URL carries the account credentials, so it is never logged or stored;
- * failures are reported by exception class only.
+ * failures are reported by exception class only (never the message, which could repeat a URL). A response over
+ * 2 MB, an error status or an unreadable body counts as a failure and is retried after two minutes.
  */
 class ShortEpgRepository(
     private val db: AppDatabase,
@@ -49,11 +53,13 @@ class ShortEpgRepository(
                 var failed = false
                 val result = try {
                     fetch(channelId)
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: IOException) {
                     AppLog.d(TAG, "short EPG failed: ${e.javaClass.simpleName}")
                     failed = true
                     emptyList()
-                } catch (e: RuntimeException) {
+                } catch (e: Exception) {
                     AppLog.d(TAG, "short EPG unreadable: ${e.javaClass.simpleName}")
                     failed = true
                     emptyList()
@@ -84,24 +90,31 @@ class ShortEpgRepository(
         val ua = src.userAgent?.takeIf { it.isNotBlank() } ?: settings.current().defaultUserAgent
         // The full table includes past programmes (needed to pick a catchup programme); older panels only
         // implement the short list.
-        val table = get(XtreamUrls.simpleDataTable(creds.base, creds.username, creds.password, streamId), ua)
-            ?.let { XtreamParser.parseShortEpg(it, zone) }.orEmpty()
+        val table = try {
+            XtreamParser.parseShortEpg(get(XtreamUrls.simpleDataTable(creds.base, creds.username, creds.password, streamId), ua), zone)
+        } catch (e: IOException) {
+            emptyList() // not implemented by every panel: the short list below decides whether this is a failure
+        } catch (e: XtreamException) {
+            emptyList()
+        }
         if (table.isNotEmpty()) return table
-        return get(XtreamUrls.shortEpg(creds.base, creds.username, creds.password, streamId, SHORT_LIMIT), ua)
-            ?.let { XtreamParser.parseShortEpg(it, zone) }.orEmpty()
+        return XtreamParser.parseShortEpg(get(XtreamUrls.shortEpg(creds.base, creds.username, creds.password, streamId, SHORT_LIMIT), ua), zone)
     }
 
-    /** Body of a successful response, or null. Bodies over [MAX_BYTES] are ignored. */
-    private fun get(url: String, userAgent: String): String? {
+    /**
+     * Body of a successful response. Throws [IOException] for an error status or a body over [MAX_BYTES]; the
+     * message names neither the URL nor the credentials (the URL carries both).
+     */
+    private fun get(url: String, userAgent: String): String {
         val req = try {
-            Request.Builder().url(url).header("User-Agent", userAgent).build()
+            Request.Builder().url(url).header("User-Agent", StreamHeaders.sanitizeValue(userAgent)).build()
         } catch (e: IllegalArgumentException) {
-            return null
+            throw IOException("Invalid request")
         }
         client.newCall(req).execute().use { resp ->
-            if (!resp.isSuccessful) return null
+            if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
             val source = resp.body.source()
-            if (source.request(MAX_BYTES + 1)) return null
+            if (source.request(MAX_BYTES + 1)) throw IOException("Response too large")
             return source.readUtf8()
         }
     }

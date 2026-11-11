@@ -13,7 +13,10 @@ sealed interface DownloadResult {
     data class Failed(val message: String, val retryable: Boolean) : DownloadResult
 }
 
-/** Conditional GET into a cache file. Content is never decoded here (see core Compression). */
+/**
+ * Conditional GET into a cache file. Content is never decoded here (see core Compression). A download over
+ * [maxBytes] is aborted and its partial file removed.
+ */
 class Downloader(private val redactor: Redactor) {
     fun download(
         client: OkHttpClient,
@@ -22,6 +25,7 @@ class Downloader(private val redactor: Redactor) {
         etag: String?,
         lastModified: String?,
         dest: File,
+        maxBytes: Long = PLAYLIST_MAX_BYTES,
         onProgress: ((bytes: Long) -> Unit)? = null,
     ): DownloadResult {
         val req = try {
@@ -39,6 +43,7 @@ class Downloader(private val redactor: Redactor) {
                 when {
                     resp.code == 304 -> DownloadResult.NotModified
                     !resp.isSuccessful -> DownloadResult.Failed("HTTP ${resp.code}", retryable = resp.code >= 500 || resp.code == 429)
+                    resp.body.contentLength() > maxBytes -> DownloadResult.Failed(TOO_LARGE, retryable = false)
                     else -> {
                         dest.parentFile?.mkdirs()
                         var total = 0L
@@ -50,6 +55,7 @@ class Downloader(private val redactor: Redactor) {
                                     if (n < 0) break
                                     out.write(buf, 0, n)
                                     total += n
+                                    if (total > maxBytes) throw TooLargeException()
                                     onProgress?.invoke(total)
                                 }
                             }
@@ -60,13 +66,23 @@ class Downloader(private val redactor: Redactor) {
                     }
                 }
             }
+        } catch (e: TooLargeException) {
+            tmp.delete()
+            DownloadResult.Failed(TOO_LARGE, retryable = false)
         } catch (e: IOException) {
             tmp.delete()
             DownloadResult.Failed(redactor.redact(e), retryable = true)
         }
     }
 
-    private companion object {
-        const val BUFFER = 64 * 1024
+    private class TooLargeException : IOException()
+
+    companion object {
+        /** Largest accepted playlist (decoded bytes as written to disk). */
+        const val PLAYLIST_MAX_BYTES = 64L * 1024 * 1024
+        /** Largest accepted XMLTV download. */
+        const val EPG_MAX_BYTES = 256L * 1024 * 1024
+        const val TOO_LARGE = "File is too large"
+        private const val BUFFER = 64 * 1024
     }
 }

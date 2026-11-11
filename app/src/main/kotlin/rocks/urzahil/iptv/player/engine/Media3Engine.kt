@@ -135,7 +135,7 @@ class Media3Engine(
     /** Only created when the engine is the Media3 one: media keys and the background notification use it. */
     override val mediaSession: MediaSession = MediaSession.Builder(context, player)
         .setId("live-${SESSION_COUNTER.incrementAndGet()}")
-        .setCallback(RestrictedSessionCallback(context))
+        .setCallback(RestrictedSessionCallback())
         .setSessionActivity(
             PendingIntent.getActivity(
                 context, 0, Intent(context, PlayerActivity::class.java),
@@ -159,6 +159,9 @@ class Media3Engine(
         _state.value = EngineState.Buffering
         _tracks.value = TrackSet.EMPTY
         _videoSize.value = null
+        // MediaSession invariant: the stream URL (it can carry Xtream credentials) must never reach the session
+        // metadata that other apps can read. So never call setRequestMetadata(mediaUri = ...) and never use a URL
+        // as the mediaId; only the title and artist below are exposed.
         val item = MediaItem.Builder()
             .setUri(request.url)
             .setMimeType(mimeFor(request))
@@ -391,9 +394,10 @@ class Media3Engine(
 
 /** Lets only this app and trusted system controllers (media keys, notification) talk to the session. */
 @OptIn(UnstableApi::class)
-internal class RestrictedSessionCallback(private val context: Context) : MediaSession.Callback {
+internal class RestrictedSessionCallback : MediaSession.Callback {
     override fun onConnect(session: MediaSession, controller: MediaSession.ControllerInfo): MediaSession.ConnectionResult {
-        val allowed = controller.packageName == context.packageName || controller.isTrusted ||
+        // The uid comes from Binder.getCallingUid(); the package name is supplied by the caller and can be forged.
+        val allowed = controller.uid == android.os.Process.myUid() || controller.isTrusted ||
             session.isMediaNotificationController(controller)
         if (!allowed) return MediaSession.ConnectionResult.reject()
         // No seeking, playlist or track changes from outside: the app's own timeline logic owns those.

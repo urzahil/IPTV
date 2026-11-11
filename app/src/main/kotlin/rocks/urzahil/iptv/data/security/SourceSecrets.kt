@@ -1,6 +1,8 @@
 package rocks.urzahil.iptv.data.security
 
+import rocks.urzahil.iptv.core.catchup.XtreamUrlPattern
 import rocks.urzahil.iptv.core.util.Redactor
+import rocks.urzahil.iptv.core.util.Urls
 import rocks.urzahil.iptv.data.db.entities.EpgSourceEntity
 import rocks.urzahil.iptv.data.db.entities.SourceEntity
 
@@ -37,13 +39,23 @@ class SourceSecrets(private val cipher: SecretCipher, private val redactor: Reda
         return url
     }
 
-    /** Registers query values of a URL (tokens, passwords) so they are masked in any error text. */
+    /**
+     * Registers the secrets of a stream or playlist URL so they are masked in any error text: query values
+     * (tokens, passwords) and the user and password of Xtream-style paths (`http://host/user/pass/123.ts`,
+     * which the Redactor's path pattern only recognises behind `/live/`).
+     */
     fun registerUrlSecrets(url: String) {
+        XtreamUrlPattern.match(url)?.let {
+            for (part in listOf(it.user, it.pass)) {
+                redactor.register(part)
+                redactor.register(Urls.decode(part))
+            }
+        }
         val q = url.substringAfter('?', "").substringBefore('#')
         if (q.isEmpty()) return
         for (pair in q.split('&')) {
             val v = pair.substringAfter('=', "")
-            if (v.length >= 3) redactor.register(rocks.urzahil.iptv.core.util.Urls.decode(v))
+            if (v.length >= 3) redactor.register(Urls.decode(v))
         }
     }
 }

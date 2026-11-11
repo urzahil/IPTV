@@ -1,7 +1,10 @@
 package rocks.urzahil.iptv.sync
 
 import rocks.urzahil.iptv.core.epg.NameNormalizer
+import rocks.urzahil.iptv.core.io.InputLimitException
+import rocks.urzahil.iptv.core.io.LimitedInputStream
 import rocks.urzahil.iptv.core.model.CatchupType
+import rocks.urzahil.iptv.core.model.StreamHeaders
 import rocks.urzahil.iptv.core.xtream.XLiveStream
 import rocks.urzahil.iptv.core.xtream.XtreamAuth
 import rocks.urzahil.iptv.core.xtream.XtreamException
@@ -12,6 +15,7 @@ import rocks.urzahil.iptv.data.db.AppDatabase
 import rocks.urzahil.iptv.data.db.entities.ChannelEntity
 import rocks.urzahil.iptv.data.db.entities.SourceEntity
 import rocks.urzahil.iptv.data.security.XtreamCredentials
+import rocks.urzahil.iptv.data.settings.AppSettings
 import java.io.IOException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.ensureActive
@@ -50,7 +54,7 @@ class XtreamImporter(private val db: AppDatabase, private val client: OkHttpClie
         val known = categories.mapTo(HashSet()) { it.id }
 
         val url = XtreamUrls.liveStreams(creds.base, creds.username, creds.password)
-        executeStream(url, headers) { input ->
+        executeStream(url, headers, MAX_LIST_BYTES) { input ->
             XtreamParser.streamLiveStreams(input) { s ->
                 job?.ensureActive()
                 val keys = categoryKeys(s, known)
@@ -78,11 +82,12 @@ class XtreamImporter(private val db: AppDatabase, private val client: OkHttpClie
 
     private fun getString(url: String, headers: Map<String, String>): String {
         var out = ""
-        executeStream(url, headers) { out = it.readBytes().toString(Charsets.UTF_8) }
+        executeStream(url, headers, MAX_SMALL_RESPONSE_BYTES) { out = it.readBytes().toString(Charsets.UTF_8) }
         return out
     }
 
-    private fun executeStream(url: String, headers: Map<String, String>, consume: (java.io.InputStream) -> Unit) {
+    /** Reads at most [maxBytes] of the (decoded) body; a larger response is rejected. */
+    private fun executeStream(url: String, headers: Map<String, String>, maxBytes: Long, consume: (java.io.InputStream) -> Unit) {
         val req = try {
             Request.Builder().url(url).apply { headers.forEach { (k, v) -> header(k, v) } }.build()
         } catch (e: IllegalArgumentException) {
@@ -90,7 +95,11 @@ class XtreamImporter(private val db: AppDatabase, private val client: OkHttpClie
         }
         client.newCall(req).execute().use { resp ->
             if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
-            consume(resp.body.byteStream())
+            try {
+                consume(LimitedInputStream(resp.body.byteStream(), maxBytes, "Unexpected server response"))
+            } catch (e: InputLimitException) {
+                throw XtreamException("Unexpected server response")
+            }
         }
     }
 
@@ -98,11 +107,15 @@ class XtreamImporter(private val db: AppDatabase, private val client: OkHttpClie
         const val UNCATEGORIZED_KEY = "__uncategorized"
         const val UNCATEGORIZED_NAME = "Uncategorized"
         private const val PROGRESS_EVERY = 500
+        /** Login and category responses are a few KB; the channel list of a large panel stays well below the cap. */
+        private const val MAX_SMALL_RESPONSE_BYTES = 16L * 1024 * 1024
+        private const val MAX_LIST_BYTES = 256L * 1024 * 1024
 
         fun headersFor(source: SourceEntity, defaultUserAgent: String): Map<String, String> {
             val m = LinkedHashMap<String, String>()
-            m["User-Agent"] = source.userAgent?.takeIf { it.isNotBlank() } ?: defaultUserAgent
-            source.referrer?.takeIf { it.isNotBlank() }?.let { m["Referer"] = it }
+            m["User-Agent"] = source.userAgent?.let(StreamHeaders::sanitizeValue)?.takeIf { it.isNotEmpty() }
+                ?: StreamHeaders.sanitizeValue(defaultUserAgent).ifEmpty { AppSettings.DEFAULT_USER_AGENT }
+            source.referrer?.let(StreamHeaders::sanitizeValue)?.takeIf { it.isNotEmpty() }?.let { m["Referer"] = it }
             return m
         }
 

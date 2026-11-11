@@ -34,8 +34,11 @@ object TextInput {
         return InputStreamReader(pb, decoder)
     }
 
-    /** Reads lines terminated by LF, CRLF or lone CR. */
-    class LineReader(private val reader: Reader) {
+    /** Longest accepted line. M3U lines are a few hundred bytes; a file without line breaks must not fill the memory. */
+    const val MAX_LINE_LENGTH = 1024 * 1024
+
+    /** Reads lines terminated by LF, CRLF or lone CR. Throws [InputLimitException] for a line over [maxLineLength]. */
+    class LineReader(private val reader: Reader, private val maxLineLength: Int = MAX_LINE_LENGTH) {
         private val buf = CharArray(8192)
         private var len = 0
         private var pos = 0
@@ -60,6 +63,7 @@ object TextInput {
                 val start = pos
                 while (pos < len && buf[pos] != '\n' && buf[pos] != '\r') pos++
                 if (pos < len) {
+                    if ((sb?.length ?: 0) + (pos - start) > maxLineLength) throw InputLimitException("Line too long")
                     val line = if (sb == null) String(buf, start, pos - start)
                     else sb.append(buf, start, pos - start).toString()
                     if (buf[pos] == '\r') skipLf = true
@@ -67,6 +71,7 @@ object TextInput {
                     return line
                 }
                 if (sb == null) sb = StringBuilder()
+                if (sb.length + (pos - start) > maxLineLength) throw InputLimitException("Line too long")
                 sb.append(buf, start, pos - start)
             }
         }

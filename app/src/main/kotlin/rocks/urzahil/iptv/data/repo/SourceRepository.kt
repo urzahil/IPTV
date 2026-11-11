@@ -1,5 +1,6 @@
 package rocks.urzahil.iptv.data.repo
 
+import rocks.urzahil.iptv.core.model.StreamHeaders
 import android.net.Uri
 import rocks.urzahil.iptv.core.util.Redactor
 import rocks.urzahil.iptv.core.util.Urls
@@ -90,8 +91,8 @@ class SourceRepository(
             type = type.name,
             name = form.name.trim(),
             sortOrder = dao.nextSortOrder(),
-            userAgent = form.userAgent.trim().ifEmpty { null },
-            referrer = form.referrer.trim().ifEmpty { null },
+            userAgent = StreamHeaders.sanitizeValue(form.userAgent).ifEmpty { null },
+            referrer = StreamHeaders.sanitizeValue(form.referrer).ifEmpty { null },
             streamFormat = if (form.streamFormat == "m3u8") "m3u8" else "ts",
             tzOverride = form.tzOverride.trim().ifEmpty { null },
         )
@@ -112,8 +113,8 @@ class SourceRepository(
         val old = dao.get(id) ?: return@withContext
         var s = old.copy(
             name = form.name.trim().ifEmpty { old.name },
-            userAgent = form.userAgent.trim().ifEmpty { null },
-            referrer = form.referrer.trim().ifEmpty { null },
+            userAgent = StreamHeaders.sanitizeValue(form.userAgent).ifEmpty { null },
+            referrer = StreamHeaders.sanitizeValue(form.referrer).ifEmpty { null },
             streamFormat = if (form.streamFormat == "m3u8") "m3u8" else "ts",
             tzOverride = form.tzOverride.trim().ifEmpty { null },
         )
@@ -205,7 +206,7 @@ class SourceRepository(
         val creds = XtreamCredentials(XtreamUrls.normalizeBase(form.location), form.username.trim(), form.password)
         redactor.register(creds.username)
         redactor.register(creds.password)
-        val ua = form.userAgent.trim().ifEmpty { settings.current().defaultUserAgent }
+        val ua = StreamHeaders.sanitizeValue(form.userAgent).ifEmpty { settings.current().defaultUserAgent }
         try {
             val auth = XtreamImporter(db, client).login(creds, mapOf("User-Agent" to ua))
             XtreamLoginResult.Ok(

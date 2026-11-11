@@ -163,7 +163,9 @@ class M3uParser {
 
         // Header precedence (low to high): EXTHTTP/KODIPROP, EXTVLCOPT, pipe suffix.
         var headers = p.kodiHeaders.merge(p.httpHeaders)
-        var vlc = StreamHeaders(userAgent = p.vlcUa, referrer = p.vlcRef)
+        var vlc = StreamHeaders.EMPTY
+        p.vlcUa?.let { vlc = vlc.with("User-Agent", it) }
+        p.vlcRef?.let { vlc = vlc.with("Referer", it) }
         p.vlcOrigin?.let { vlc = vlc.with("Origin", it) }
         headers = headers.merge(vlc)
         if (pipe != null) headers = headers.merge(pipe)

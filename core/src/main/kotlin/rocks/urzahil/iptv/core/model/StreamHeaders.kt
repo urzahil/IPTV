@@ -31,14 +31,31 @@ data class StreamHeaders(
         return m
     }
 
-    /** Sets a header by name, routing User-Agent and Referer(r) to the dedicated fields. */
-    fun with(name: String, value: String): StreamHeaders = when (name.trim().lowercase()) {
-        "user-agent", "http-user-agent" -> copy(userAgent = value)
-        "referer", "referrer", "http-referrer", "http-referer" -> copy(referrer = value)
-        else -> merge(StreamHeaders(extra = mapOf(name.trim() to value)))
+    /**
+     * Sets a header by name, routing User-Agent and Referer(r) to the dedicated fields. Playlist data is untrusted:
+     * the value is reduced to printable ASCII (no CR/LF or other control characters, no non-ASCII) and the header
+     * is dropped when the name is not an RFC 7230 token or the cleaned value is empty.
+     */
+    fun with(name: String, value: String): StreamHeaders {
+        val n = name.trim()
+        val v = sanitizeValue(value)
+        if (v.isEmpty() || !isToken(n)) return this
+        return when (n.lowercase()) {
+            "user-agent", "http-user-agent" -> copy(userAgent = v)
+            "referer", "referrer", "http-referrer", "http-referer" -> copy(referrer = v)
+            else -> merge(StreamHeaders(extra = mapOf(n to v)))
+        }
     }
 
     companion object {
         val EMPTY = StreamHeaders()
+
+        /** Keeps tab and printable ASCII only, trimmed. Safe for an HTTP header value or a libVLC option. */
+        fun sanitizeValue(value: String): String = value.filter { it == '\t' || it in ' '..'~' }.trim()
+
+        /** RFC 7230 token: one or more of the visible characters except delimiters. */
+        fun isToken(name: String): Boolean = name.isNotEmpty() && name.all { it in TOKEN_CHARS }
+
+        private const val TOKEN_CHARS = "!#$%&'*+-.^_`|~0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
     }
 }

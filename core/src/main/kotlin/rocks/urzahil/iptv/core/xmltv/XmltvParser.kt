@@ -1,6 +1,7 @@
 package rocks.urzahil.iptv.core.xmltv
 
 import rocks.urzahil.iptv.core.epg.NameNormalizer
+import rocks.urzahil.iptv.core.io.InputLimitException
 import rocks.urzahil.iptv.core.model.ParsedEpgChannel
 import rocks.urzahil.iptv.core.model.ParsedProgramme
 import java.io.InputStream
@@ -70,6 +71,8 @@ class XmltvParser(
             if (!tail.endsWithRootClose()) ctx.warnings.add("Unexpected end of file, keeping partial result")
         } catch (e: XmlPullParserException) {
             ctx.warnings.add("XML error, keeping partial result: ${e.message}")
+        } catch (e: InputLimitException) {
+            throw e
         } catch (e: java.io.IOException) {
             ctx.warnings.add("Read error, keeping partial result: ${e.message}")
         }

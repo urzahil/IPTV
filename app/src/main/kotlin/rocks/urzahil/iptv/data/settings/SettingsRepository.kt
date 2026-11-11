@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.stringPreferencesKey
+import rocks.urzahil.iptv.core.model.StreamHeaders
 import rocks.urzahil.iptv.player.model.BufferProfile
 import rocks.urzahil.iptv.player.model.DeinterlaceMode
 import rocks.urzahil.iptv.player.model.EnginePreference
@@ -34,7 +35,7 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
             epgPastDays = (p[PAST] ?: d.epgPastDays).coerceIn(AppSettings.MIN_PAST_DAYS, AppSettings.MAX_PAST_DAYS),
             playlistRefreshHours = (p[PLAYLIST_HOURS] ?: d.playlistRefreshHours).coerceAtLeast(0),
             epgRefreshHours = (p[EPG_HOURS] ?: d.epgRefreshHours).coerceAtLeast(0),
-            defaultUserAgent = p[USER_AGENT]?.takeIf { it.isNotBlank() } ?: d.defaultUserAgent,
+            defaultUserAgent = p[USER_AGENT]?.let(StreamHeaders::sanitizeValue)?.takeIf { it.isNotEmpty() } ?: d.defaultUserAgent,
             sortByNumber = p[SORT_BY_NUMBER] ?: d.sortByNumber,
             showRadio = p[SHOW_RADIO] ?: d.showRadio,
             engine = EnginePreference.parse(p[ENGINE]),
@@ -55,7 +56,7 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
     suspend fun setEpgPastDays(v: Int) = store.edit { it[PAST] = v.coerceIn(AppSettings.MIN_PAST_DAYS, AppSettings.MAX_PAST_DAYS) }
     suspend fun setPlaylistRefreshHours(v: Int) = store.edit { it[PLAYLIST_HOURS] = v }
     suspend fun setEpgRefreshHours(v: Int) = store.edit { it[EPG_HOURS] = v }
-    suspend fun setDefaultUserAgent(v: String) = store.edit { it[USER_AGENT] = v.trim() }
+    suspend fun setDefaultUserAgent(v: String) = store.edit { it[USER_AGENT] = StreamHeaders.sanitizeValue(v) }
     suspend fun setSortByNumber(v: Boolean) = store.edit { it[SORT_BY_NUMBER] = v }
     suspend fun setShowRadio(v: Boolean) = store.edit { it[SHOW_RADIO] = v }
 

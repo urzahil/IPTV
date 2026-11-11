@@ -21,6 +21,7 @@ import org.videolan.libvlc.LibVLC
 import org.videolan.libvlc.Media
 import org.videolan.libvlc.MediaPlayer
 import org.videolan.libvlc.util.VLCVideoLayout
+import rocks.urzahil.iptv.core.model.StreamHeaders
 import rocks.urzahil.iptv.player.model.AspectMode
 import rocks.urzahil.iptv.player.model.EngineKind
 import rocks.urzahil.iptv.player.model.EngineState
@@ -65,6 +66,9 @@ class VlcEngine(private val context: Context, config: EngineConfig) : PlayerEngi
 
     init {
         val options = arrayListOf(
+            // libVLC logs the full MRL (user and password of an Xtream URL included) to logcat when an open fails,
+            // and that native log bypasses the app's redaction. Silence it, in debug builds too.
+            "--verbose=-1",
             "--http-reconnect",
             "--audio-time-stretch",
             "--no-stats",
@@ -88,8 +92,9 @@ class VlcEngine(private val context: Context, config: EngineConfig) : PlayerEngi
         val media = Media(libVlc, Uri.parse(request.url))
         media.setHWDecoderEnabled(true, false)
         media.addOption(":network-caching=${if (request.live) LIVE_CACHING_MS else CATCHUP_CACHING_MS}")
-        request.userAgent?.let { media.addOption(":http-user-agent=$it") }
-        request.referrer?.let { media.addOption(":http-referrer=$it") }
+        // Values come from playlists: printable ASCII only, so no option can be smuggled in with a line break.
+        request.userAgent?.let(StreamHeaders::sanitizeValue)?.takeIf { it.isNotEmpty() }?.let { media.addOption(":http-user-agent=$it") }
+        request.referrer?.let(StreamHeaders::sanitizeValue)?.takeIf { it.isNotEmpty() }?.let { media.addOption(":http-referrer=$it") }
         if (startPositionMs > 0) media.addOption(":start-time=${startPositionMs / 1000.0}")
         player.media = media
         media.release()

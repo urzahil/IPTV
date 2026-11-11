@@ -170,3 +170,13 @@ class XmltvParserTest {
         assertThat(ch).hasSize(1)
     }
 }
+
+class XmltvParserLimitTest {
+    @Test fun a_limit_violation_aborts_instead_of_returning_a_partial_result() {
+        val xml = """<?xml version="1.0"?><tv><channel id="a"><display-name>${"n".repeat(500)}</display-name></channel></tv>"""
+        val guarded = rocks.urzahil.iptv.core.io.XmlGuardInputStream(xml.byteInputStream(), maxRun = 100)
+        org.junit.Assert.assertThrows(rocks.urzahil.iptv.core.io.InputLimitException::class.java) {
+            XmltvParser(XmltvOptions(nowMs = 1794398400_000L)) { KXmlParser() }.parse(guarded, {}, {})
+        }
+    }
+}
