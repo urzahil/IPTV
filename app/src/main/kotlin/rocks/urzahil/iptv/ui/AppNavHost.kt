@@ -30,6 +30,7 @@ import androidx.navigation.navArgument
 import rocks.urzahil.iptv.player.PlayerActivity
 import rocks.urzahil.iptv.ui.channels.ChannelsScreen
 import rocks.urzahil.iptv.ui.favourites.FavouritesScreen
+import rocks.urzahil.iptv.ui.guide.GuidePlayRequest
 import rocks.urzahil.iptv.ui.guide.GuideScreen
 import rocks.urzahil.iptv.ui.search.SearchScreen
 import rocks.urzahil.iptv.ui.settings.SettingsScreen
@@ -96,7 +97,24 @@ fun AppNavHost() {
                     onAddSource = { nav.navigate(Routes.SOURCES) },
                 )
             }
-            composable(Routes.GUIDE) { GuideScreen(onOpenSettings = { openSettings() }) }
+            composable(Routes.GUIDE) {
+                GuideScreen(
+                    onPlay = { request ->
+                        scope.launch { context.appContainer.channelRepository.markWatched(request.channelId) }
+                        context.startActivity(
+                            when (request) {
+                                is GuidePlayRequest.Live -> PlayerActivity.intent(context, request.channelId, request.categoryId)
+                                is GuidePlayRequest.Programme ->
+                                    PlayerActivity.intent(context, request.channelId, request.categoryId, catchupProgrammeId = request.programmeId)
+                                is GuidePlayRequest.Span ->
+                                    PlayerActivity.intentAt(context, request.channelId, request.categoryId, request.startMs, request.endMs)
+                            },
+                        )
+                    },
+                    onOpenSettings = { openSettings() },
+                    onAddSource = { nav.navigate(Routes.SOURCES) },
+                )
+            }
             composable(Routes.FAVOURITES) { FavouritesScreen(onPlayChannel, { openSettings() }) }
             composable(Routes.SEARCH) { SearchScreen(onPlayChannel, { openSettings() }) }
             composable(Routes.SOURCES) {

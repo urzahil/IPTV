@@ -9,6 +9,7 @@ import rocks.urzahil.iptv.data.net.HttpClientFactory
 import rocks.urzahil.iptv.data.repo.ChannelPrefsRepository
 import rocks.urzahil.iptv.data.repo.ChannelRepository
 import rocks.urzahil.iptv.data.repo.EpgRepository
+import rocks.urzahil.iptv.data.repo.ShortEpgRepository
 import rocks.urzahil.iptv.data.repo.SourceRepository
 import rocks.urzahil.iptv.data.repo.StreamInputsRepository
 import rocks.urzahil.iptv.data.security.CredentialCipher
@@ -52,6 +53,10 @@ class AppContainer(private val context: Context) {
     val playlistSyncRunner by lazy { PlaylistSyncRunner(db, http.client, downloader, secrets, redactor, contentSource, cacheDir) }
     val epgImporter by lazy { EpgImporter(db, http.epgClient, downloader, secrets, redactor, cacheDir) }
     val pruner by lazy { Pruner(db) }
+
+    /** Source/category filter shared by the Channels and Guide tabs. */
+    val browseSelection = kotlinx.coroutines.flow.MutableStateFlow(rocks.urzahil.iptv.ui.channels.Selection())
+    val shortEpg by lazy { ShortEpgRepository(db, secrets, http.client, settings) }
 
     /** App-scoped so the player survives activity recreation, PiP and the background-audio hand-over. */
     val playback by lazy {

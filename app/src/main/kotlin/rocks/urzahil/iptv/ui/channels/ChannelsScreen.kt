@@ -35,7 +35,10 @@ import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemKey
 import rocks.urzahil.iptv.data.db.entities.SourceEntity
 import rocks.urzahil.iptv.ui.appViewModel
+import rocks.urzahil.iptv.ui.components.CategoryChips
 import rocks.urzahil.iptv.ui.components.ChannelRow
+import rocks.urzahil.iptv.ui.components.SourceEmptyState
+import rocks.urzahil.iptv.ui.components.SourceTitle
 import rocks.urzahil.iptv.ui.components.EmptyState
 import rocks.urzahil.iptv.ui.components.LoadingView
 import rocks.urzahil.iptv.ui.components.TabScaffold
@@ -91,7 +94,7 @@ fun ChannelsScreen(
             )
             else -> Column(Modifier.padding(padding).fillMaxSize()) {
                 CategoryChips(
-                    categories = categories.map { it.id to it.name },
+                    categories = categories,
                     selected = selectedCategory,
                     onSelect = vm::selectCategory,
                 )
@@ -115,61 +118,6 @@ fun ChannelsScreen(
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun SourceEmptyState(source: SourceEntity, onRetry: () -> Unit) {
-    when (source.status) {
-        SourceEntity.STATUS_ERROR, SourceEntity.STATUS_NEEDS_CREDENTIALS -> EmptyState(
-            title = "Could not load channels",
-            message = source.lastError ?: "Unknown error",
-            actionLabel = "Try again",
-            onAction = onRetry,
-            isError = true,
-        )
-        SourceEntity.STATUS_NEW -> EmptyState(
-            title = "Importing channels",
-            message = "This can take a minute for large playlists.",
-        )
-        else -> EmptyState(title = "No channels", message = "This source has no live channels in this category.")
-    }
-}
-
-@Composable
-private fun SourceTitle(sources: List<SourceEntity>, current: SourceEntity?, onSelect: (Long) -> Unit) {
-    if (sources.size <= 1 || current == null) {
-        Text(current?.name ?: "Channels")
-        return
-    }
-    var open by remember { mutableStateOf(false) }
-    Row(
-        Modifier.heightIn(min = Dimens.MinTouchTarget).clickable { open = true },
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(current.name)
-        Icon(Icons.Filled.ArrowDropDown, contentDescription = "Choose source")
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            sources.forEach { s ->
-                DropdownMenuItem(text = { Text(s.name) }, onClick = { open = false; onSelect(s.id) })
-            }
-        }
-    }
-}
-
-@Composable
-private fun CategoryChips(categories: List<Pair<Long, String>>, selected: Long?, onSelect: (Long?) -> Unit) {
-    LazyRow(
-        modifier = Modifier.fillMaxWidth(),
-        contentPadding = PaddingValues(horizontal = Dimens.ScreenPadding, vertical = 8.dp),
-        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
-    ) {
-        item(key = "all") {
-            FilterChip(selected = selected == null, onClick = { onSelect(null) }, label = { Text("All") })
-        }
-        items(categories, key = { it.first }) { (id, name) ->
-            FilterChip(selected = selected == id, onClick = { onSelect(id) }, label = { Text(name, maxLines = 1) })
         }
     }
 }

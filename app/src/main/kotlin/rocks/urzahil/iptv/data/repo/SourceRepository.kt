@@ -67,6 +67,8 @@ class SourceRepository(
 
     fun observeEpgSources(ownerId: Long): Flow<List<EpgSourceEntity>> = db.epgDao().observeSourcesOf(ownerId)
 
+    suspend fun epgSourcesOf(ownerId: Long): List<EpgSourceEntity> = withContext(Dispatchers.IO) { db.epgDao().sourcesOfBlocking(ownerId) }
+
     suspend fun get(id: Long): SourceEntity? = dao.get(id)
 
     suspend fun getAll(): List<SourceEntity> = dao.getAll()

@@ -14,6 +14,10 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeRight
+import androidx.compose.ui.unit.dp
+import com.github.takahirom.roborazzi.captureScreenRoboImage
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.printToString
@@ -209,6 +213,22 @@ class ScreenshotTest {
         compose.setContent { IptvTheme(dynamicColor = false) { AppNavHost() } }
         settle("News 24")
         shot("channels")
+
+        compose.onNodeWithText("Guide").performClick()
+        settle("World at Noon")
+        shot("guide")
+        // Drag the grid to the right (back in time), then open a past programme of a catchup channel.
+        compose.onAllNodesWithText("World at Noon", substring = true)[0].performTouchInput { swipeRight(startX = centerX, endX = centerX + 150.dp.toPx(), durationMillis = 400) }
+        settle("The Evening Report")
+        compose.onAllNodesWithText("The Evening Report", substring = true)[0].performClick()
+        compose.waitUntil(30_000) { compose.onAllNodesWithText("Available on catchup").fetchSemanticsNodes().isNotEmpty() }
+        compose.waitForIdle()
+        Thread.sleep(500); compose.waitForIdle()
+        File(outDir).mkdirs()
+        captureScreenRoboImage("$outDir/guide_programme.png")
+        compose.onNodeWithText("Watch").assertExists()
+        androidx.test.espresso.Espresso.pressBack()
+        compose.waitForIdle()
 
         compose.onNodeWithText("Favourites").performClick()
         settle("Sports Arena 1")
