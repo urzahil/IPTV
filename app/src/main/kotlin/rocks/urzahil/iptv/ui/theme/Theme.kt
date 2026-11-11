@@ -3,6 +3,9 @@ package rocks.urzahil.iptv.ui.theme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.ui.platform.LocalContext
+import android.os.Build
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -60,10 +63,19 @@ private val IptvShapes = Shapes(
     extraLarge = RoundedCornerShape(28.dp),
 )
 
+/**
+ * The interface is always dark. On Android 12+ the palette follows the system (Material You, dark variant);
+ * older versions, and tests that need deterministic output ([dynamicColor] = false), use [IptvDarkColors].
+ */
 @Composable
-fun IptvTheme(content: @Composable () -> Unit) {
+fun IptvTheme(dynamicColor: Boolean = true, content: @Composable () -> Unit) {
+    val colors = if (dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        dynamicDarkColorScheme(LocalContext.current)
+    } else {
+        IptvDarkColors
+    }
     MaterialTheme(
-        colorScheme = IptvDarkColors,
+        colorScheme = colors,
         typography = MaterialTheme.typography,
         shapes = IptvShapes,
         content = content,

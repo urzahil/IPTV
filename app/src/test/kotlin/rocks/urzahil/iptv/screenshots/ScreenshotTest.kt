@@ -206,7 +206,7 @@ class ScreenshotTest {
     }
 
     @Test fun capture() {
-        compose.setContent { IptvTheme { AppNavHost() } }
+        compose.setContent { IptvTheme(dynamicColor = false) { AppNavHost() } }
         settle("News 24")
         shot("channels")
 
