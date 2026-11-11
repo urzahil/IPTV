@@ -58,7 +58,8 @@ data class TimelineState(
     /** Oldest wall time that can be requested, or null when the channel has no catchup. */
     val seekFloorMs: Long? get() = if (catchupDays > 0) nowMs - catchupDays * DAY_MS else null
 
-    val behindLiveMs: Long get() = if (mode == PlayMode.CATCHUP) (nowMs - wallPosMs).coerceAtLeast(0) else 0
+    /** How far the picture on screen is behind the live edge (also grows while live is paused). */
+    val behindLiveMs: Long get() = (nowMs - wallPosMs).coerceAtLeast(0)
 
     val isBehindLive: Boolean get() = behindLiveMs >= BEHIND_LIVE_THRESHOLD_MS
 

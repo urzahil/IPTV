@@ -15,6 +15,11 @@ import rocks.urzahil.iptv.data.security.CredentialCipher
 import rocks.urzahil.iptv.data.security.SecretCipher
 import rocks.urzahil.iptv.data.security.SourceSecrets
 import rocks.urzahil.iptv.data.settings.SettingsRepository
+import rocks.urzahil.iptv.player.PlaybackController
+import rocks.urzahil.iptv.player.engine.DefaultEngineFactory
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import rocks.urzahil.iptv.sync.EpgImporter
 import rocks.urzahil.iptv.sync.PlaylistSyncRunner
 import rocks.urzahil.iptv.sync.Pruner
@@ -27,6 +32,8 @@ class AppContainer(private val context: Context) {
     val redactor = Redactor().also { AppLog.redactor = it }
     private val http by lazy { HttpClientFactory() }
     private val cacheDir: File get() = File(context.cacheDir, "sync").apply { mkdirs() }
+
+    val httpClient get() = http.client
 
     val db: AppDatabase by lazy { AppDatabase.create(context) }
     val cipher: SecretCipher by lazy { CredentialCipher() }
@@ -45,4 +52,13 @@ class AppContainer(private val context: Context) {
     val playlistSyncRunner by lazy { PlaylistSyncRunner(db, http.client, downloader, secrets, redactor, contentSource, cacheDir) }
     val epgImporter by lazy { EpgImporter(db, http.epgClient, downloader, secrets, redactor, cacheDir) }
     val pruner by lazy { Pruner(db) }
+
+    /** App-scoped so the player survives activity recreation, PiP and the background-audio hand-over. */
+    val playback by lazy {
+        PlaybackController(
+            context, CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate), streamInputs, channelRepository,
+            epgRepository, channelPrefs, db.sourceDao(), settings, http.client, redactor,
+            DefaultEngineFactory(context, http.client),
+        )
+    }
 }
