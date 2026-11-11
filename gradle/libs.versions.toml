@@ -23,6 +23,8 @@ kxml2 = "2.3.0"
 desugar = "2.1.5"
 junit = "4.13.2"
 truth = "1.4.5"
+robolectric = "4.17"
+androidxTest = "1.7.0"
 
 [libraries]
 androidx-compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }
@@ -66,6 +68,8 @@ libvlc-all = { module = "org.videolan.android:libvlc-all", version.ref = "libvlc
 kxml2 = { module = "net.sf.kxml:kxml2", version.ref = "kxml2" }
 desugar-jdk-libs = { module = "com.android.tools:desugar_jdk_libs", version.ref = "desugar" }
 junit = { module = "junit:junit", version.ref = "junit" }
+robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
+androidx-test-core = { module = "androidx.test:core", version.ref = "androidxTest" }
 truth = { module = "com.google.truth:truth", version.ref = "truth" }
 
 [plugins]

@@ -9,27 +9,17 @@ plugins {
 }
 
 val appVersionCode = 1
-val abiCodes = mapOf("armeabi-v7a" to 1, "arm64-v8a" to 2, "x86" to 3, "x86_64" to 4)
 
 android {
     namespace = "io.github.urzahil.iptv"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "io.github.urzahil.iptv"
+        applicationId = "rocks.urzahil.iptv"
         minSdk = 24
         targetSdk = 36
-        versionCode = appVersionCode * 10
+        versionCode = appVersionCode
         versionName = "0.1.0"
-    }
-
-    splits {
-        abi {
-            isEnable = true
-            reset()
-            include("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
-            isUniversalApk = true
-        }
     }
 
     buildTypes {
@@ -63,6 +53,7 @@ android {
 
     testOptions {
         unitTests.isReturnDefaultValues = true
+        unitTests.isIncludeAndroidResources = true
     }
 }
 
@@ -74,17 +65,6 @@ kotlin {
 
 room {
     schemaDirectory("$projectDir/schemas")
-}
-
-// versionCode = base * 10 + abiIndex (universal APK keeps abiIndex 0).
-androidComponents {
-    onVariants { variant ->
-        variant.outputs.forEach { output ->
-            val abi = output.filters.find { it.filterType == com.android.build.api.variant.FilterConfiguration.FilterType.ABI }?.identifier
-            val idx = abiCodes[abi] ?: 0
-            output.versionCode.set(appVersionCode * 10 + idx)
-        }
-    }
 }
 
 // The FFmpeg decoder is built against media3 1.9.x: keep every media3 module on the same line.
@@ -145,4 +125,6 @@ dependencies {
     testImplementation(libs.truth)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.okhttp.mockwebserver3)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core)
 }
