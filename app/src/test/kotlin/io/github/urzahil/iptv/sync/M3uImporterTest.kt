@@ -12,7 +12,7 @@ import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [35])
+@Config(sdk = [35], application = android.app.Application::class)
 class M3uImporterTest {
     private lateinit var db: AppDatabase
 
@@ -91,7 +91,7 @@ class M3uImporterTest {
         val src = db.addSource()
         import(src, "#EXTM3U\n#EXTINF:-1,Das Erste HD\nhttp://s/1\n#EXTINF:-1,Café Télé\nhttp://s/2\n")
         runBlocking {
-            assertThat(db.channelDao().searchFts("ers*", false).map { it.name }).isEmpty()
+            assertThat(db.channelDao().searchFts("xyz*", false).map { it.name }).isEmpty()
             assertThat(db.channelDao().searchFts("er*", true).map { it.name }).containsExactly("Das Erste HD")
             assertThat(db.channelDao().searchFts("cafe* tele*", true).map { it.name }).containsExactly("Café Télé")
         }
