@@ -1,4 +1,4 @@
-name: Build IPTV Release APKs and AAB
+name: Build IPTV Release APK and AAB
 
 on:
   workflow_dispatch:
@@ -48,7 +48,7 @@ jobs:
           printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.p12"
           test -s "$RUNNER_TEMP/release.p12"
 
-      - name: Build signed release APKs and AAB
+      - name: Build signed release APK and AAB
         env:
           KEYSTORE_PATH: ${{ runner.temp }}/release.p12
           STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
@@ -56,29 +56,18 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: ./gradlew clean :core:test :app:testDebugUnitTest :app:assembleRelease :app:bundleRelease --no-daemon
 
-      - name: Prepare release APKs and AAB
+      - name: Prepare release APK and AAB
         run: |
           set -eu
           mkdir -p dist
-          count=0
-          for apk_path in app/build/outputs/apk/release/*.apk; do
-            test -e "$apk_path" || continue
-            name="$(basename "$apk_path" .apk)"
-            case "$name" in
-              app-*-unsigned) echo "::error::$name.apk is unsigned (no release signing config applied)"; exit 1 ;;
-              app-*-release) ;;
-              *) echo "::error::Unexpected release APK name: $name.apk"; exit 1 ;;
-            esac
-            abi="${name#app-}"
-            abi="${abi%-release}"
-            cp "$apk_path" "dist/IPTV-$abi-release.apk"
-            test -s "dist/IPTV-$abi-release.apk"
-            count=$((count + 1))
-          done
-          test "$count" -gt 0 || { echo "No release APK was produced"; exit 1; }
-          test -s dist/IPTV-universal-release.apk || { echo "Universal release APK is missing"; exit 1; }
+          apk_dir=app/build/outputs/apk/release
+          if [ -e "$apk_dir/app-release-unsigned.apk" ]; then
+            echo "::error::Release APK is unsigned (no release signing config applied)"; exit 1
+          fi
+          test -s "$apk_dir/app-release.apk" || { echo "::error::No signed release APK was produced"; exit 1; }
+          cp "$apk_dir/app-release.apk" dist/IPTV-release.apk
           aab_path="$(find app/build/outputs/bundle/release -maxdepth 1 -type f -name '*.aab' -print -quit)"
-          test -n "$aab_path" || { echo "No release AAB was produced"; exit 1; }
+          test -n "$aab_path" || { echo "::error::No release AAB was produced"; exit 1; }
           cp "$aab_path" dist/IPTV-release.aab
           test -s dist/IPTV-release.aab
 
@@ -86,7 +75,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: IPTV-release-${{ github.run_number }}
-          path: dist/*.apk
+          path: dist/IPTV-release.apk
           if-no-files-found: error
           retention-days: 30
 
@@ -104,7 +93,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$GITHUB_REF_NAME" \
-            dist/*.apk \
+            dist/IPTV-release.apk \
             dist/IPTV-release.aab \
             --generate-notes \
             --title "$GITHUB_REF_NAME"
