@@ -9,3 +9,10 @@
     public static int d(...);
     public static int i(...);
 }
+
+# Media3 loads these by name (DefaultRenderersFactory, DefaultMediaSourceFactory, DefaultDataSource).
+-keep class androidx.media3.exoplayer.rtsp.RtspMediaSource { *; }
+-keep class androidx.media3.exoplayer.rtsp.RtspMediaSource$Factory { *; }
+-keep class androidx.media3.exoplayer.hls.HlsMediaSource$Factory { *; }
+-keep class androidx.media3.exoplayer.dash.DashMediaSource$Factory { *; }
+-dontwarn org.videolan.**

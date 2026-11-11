@@ -19,6 +19,8 @@ import rocks.urzahil.iptv.R
  * Picture-in-picture for phones and tablets: parameters follow the video size and play state, API 31+ enters
  * automatically when the user leaves while playing, older versions enter from onUserLeaveHint.
  */
+// Every PiP call is guarded by [supported], which includes the API 26 check.
+@android.annotation.SuppressLint("NewApi")
 class PipController(private val activity: Activity, private val onTogglePlay: () -> Unit) {
     val supported: Boolean =
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && activity.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)

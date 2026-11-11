@@ -95,6 +95,8 @@ fun PlayerOverlay(
     zone: ZoneId,
     modifier: Modifier = Modifier,
 ) {
+    // The overlay sits on video, not on a Surface: set the content colour explicitly.
+    androidx.compose.runtime.CompositionLocalProvider(androidx.compose.material3.LocalContentColor provides MaterialTheme.colorScheme.onSurface) {
     Box(modifier.fillMaxSize()) {
         if (controlsVisible) PlayerControls(state, actions, zone)
         StatusOverlay(state, actions)
@@ -126,6 +128,7 @@ fun PlayerOverlay(
                 }
             }
         }
+    }
     }
 }
 

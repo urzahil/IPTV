@@ -28,7 +28,7 @@ object StreamTypeProbe {
 
     fun classify(contentType: String?, head: ByteArray, length: Int = head.size): StreamKind {
         val ct = contentType?.lowercase().orEmpty()
-        val text = String(head, 0, minOf(length, 512), Charsets.ISO_8859_1).trimStart('﻿', ' ', '\r', '\n')
+        val text = String(head, 0, minOf(length, 512), Charsets.ISO_8859_1).trimStart(' ', '\r', '\n')
         return when {
             "mpegurl" in ct || text.startsWith("#EXTM3U") -> StreamKind.HLS
             "dash+xml" in ct || text.contains("<MPD") -> StreamKind.DASH
