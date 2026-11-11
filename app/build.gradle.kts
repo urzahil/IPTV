@@ -11,7 +11,7 @@ plugins {
 val appVersionCode = 1
 
 android {
-    namespace = "io.github.urzahil.iptv"
+    namespace = "rocks.urzahil.iptv"
     compileSdk = 36
 
     defaultConfig {
