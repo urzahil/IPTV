@@ -18,6 +18,7 @@ import rocks.urzahil.iptv.data.security.SourceSecrets
 import rocks.urzahil.iptv.data.settings.SettingsRepository
 import rocks.urzahil.iptv.player.PlaybackController
 import rocks.urzahil.iptv.player.engine.DefaultEngineFactory
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -32,7 +33,8 @@ import java.io.File
 class AppContainer(private val context: Context) {
     val redactor = Redactor().also { AppLog.redactor = it }
     private val http by lazy { HttpClientFactory() }
-    private val cacheDir: File get() = File(context.cacheDir, "sync").apply { mkdirs() }
+    /** Temp files of running syncs (downloads, playlist copies). */
+    val syncCacheDir: File get() = File(context.cacheDir, "sync").apply { mkdirs() }
 
     val httpClient get() = http.client
 
@@ -50,20 +52,26 @@ class AppContainer(private val context: Context) {
     val channelPrefs by lazy { ChannelPrefsRepository(db.channelPrefDao()) }
     val streamInputs by lazy { StreamInputsRepository(db, secrets, settings) }
 
-    val playlistSyncRunner by lazy { PlaylistSyncRunner(db, http.client, downloader, secrets, redactor, contentSource, cacheDir) }
-    val epgImporter by lazy { EpgImporter(db, http.epgClient, downloader, secrets, redactor, cacheDir) }
+    val playlistSyncRunner by lazy { PlaylistSyncRunner(db, http.client, downloader, secrets, redactor, contentSource, syncCacheDir) }
+    val epgImporter by lazy { EpgImporter(db, http.epgClient, downloader, secrets, redactor, syncCacheDir) }
     val pruner by lazy { Pruner(db) }
 
     /** Source/category filter shared by the Channels and Guide tabs. */
     val browseSelection = kotlinx.coroutines.flow.MutableStateFlow(rocks.urzahil.iptv.ui.channels.Selection())
     val shortEpg by lazy { ShortEpgRepository(db, secrets, http.client, settings) }
 
-    /** App-scoped so the player survives activity recreation, PiP and the background-audio hand-over. */
+    /**
+     * App-scoped so the player survives activity recreation, PiP and the background-audio hand-over. An exception
+     * that escapes a playback coroutine is handled by [PlaybackController.onCrash] instead of ending the process.
+     */
     val playback by lazy {
-        PlaybackController(
-            context, CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate), streamInputs, channelRepository,
+        lateinit var controller: PlaybackController
+        val handler = CoroutineExceptionHandler { _, t -> controller.onCrash(t) }
+        controller = PlaybackController(
+            context, CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate + handler), streamInputs, channelRepository,
             epgRepository, channelPrefs, db.sourceDao(), settings, http.client, redactor,
             DefaultEngineFactory(context, http.client),
         )
+        controller
     }
 }

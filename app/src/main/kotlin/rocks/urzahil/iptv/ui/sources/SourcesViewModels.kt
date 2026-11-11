@@ -11,6 +11,7 @@ import rocks.urzahil.iptv.data.repo.SourceForm
 import rocks.urzahil.iptv.data.repo.XtreamLoginResult
 import rocks.urzahil.iptv.di.AppContainer
 import rocks.urzahil.iptv.sync.SyncProgress
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -71,7 +72,15 @@ class SourceEditorViewModel(private val c: AppContainer) : ViewModel() {
 
     fun testXtream(form: SourceForm) {
         _test.value = TestState.Running
-        viewModelScope.launch { _test.value = TestState.Done(repo.testXtream(form)) }
+        viewModelScope.launch {
+            _test.value = try {
+                TestState.Done(repo.testXtream(form))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                TestState.Done(XtreamLoginResult.Failed("The test could not be completed"))
+            }
+        }
     }
 
     fun resetTest() { _test.value = TestState.Idle }
@@ -85,6 +94,11 @@ class SourceEditorViewModel(private val c: AppContainer) : ViewModel() {
                 SaveState.Saved
             } catch (e: IllegalArgumentException) {
                 SaveState.Failed(e.message ?: "Invalid input")
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // e.g. the Keystore failed to encrypt the credentials: show it instead of crashing.
+                SaveState.Failed("Could not save the source securely. Try again.")
             }
         }
     }
@@ -99,6 +113,11 @@ class SourceEditorViewModel(private val c: AppContainer) : ViewModel() {
                 SaveState.Saved
             } catch (e: IllegalArgumentException) {
                 SaveState.Failed(e.message ?: "Invalid input")
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // e.g. the Keystore failed to encrypt the credentials: show it instead of crashing.
+                SaveState.Failed("Could not save the source securely. Try again.")
             }
         }
     }
@@ -112,6 +131,10 @@ class SourceEditorViewModel(private val c: AppContainer) : ViewModel() {
                 onResult(null)
             } catch (e: IllegalArgumentException) {
                 onResult(e.message ?: "Invalid address")
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                onResult("Could not save the source securely. Try again.")
             }
         }
     }

@@ -6,7 +6,9 @@ import androidx.work.Data
 import androidx.work.ForegroundInfo
 import androidx.work.WorkerParameters
 import rocks.urzahil.iptv.App
+import rocks.urzahil.iptv.data.db.entities.SourceEntity
 import rocks.urzahil.iptv.di.AppContainer
+import rocks.urzahil.iptv.sync.StaleFiles
 import rocks.urzahil.iptv.sync.EpgImportException
 import rocks.urzahil.iptv.sync.EpgImportResult
 import rocks.urzahil.iptv.sync.StalenessPolicy
@@ -24,6 +26,29 @@ private const val MAX_ATTEMPTS = 3
 
 abstract class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     protected val container: AppContainer get() = (applicationContext as App).container
+
+    /**
+     * Runs [sync]. Anything thrown that the worker did not handle itself, including an [Error] such as
+     * OutOfMemoryError from a hostile file, ends the run with a failure: WorkManager re-runs interrupted work at
+     * the next start, so an escaping throwable would crash the app on every launch.
+     */
+    final override suspend fun doWork(): Result = try {
+        sync()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (t: Throwable) {
+        AppLog.w(TAG, "${javaClass.simpleName} failed: ${t.javaClass.simpleName}")
+        try {
+            onUnexpectedFailure()
+        } catch (_: Throwable) {
+        }
+        Result.failure()
+    }
+
+    protected abstract suspend fun sync(): Result
+
+    /** Records the failure where the user can see it. Must not throw (it is guarded anyway). */
+    protected open suspend fun onUnexpectedFailure() {}
 
     /** Shows the data-sync foreground notification; carries on silently if the system refuses. */
     protected suspend fun promote(key: Int, text: String) {
@@ -47,7 +72,12 @@ abstract class SyncWorker(context: Context, params: WorkerParameters) : Coroutin
 }
 
 class PlaylistSyncWorker(context: Context, params: WorkerParameters) : SyncWorker(context, params) {
-    override suspend fun doWork(): Result {
+    override suspend fun onUnexpectedFailure() {
+        val sourceId = inputData.getLong(SyncScheduler.KEY_SOURCE_ID, -1)
+        if (sourceId >= 0) withContext(Dispatchers.IO) { container.db.sourceDao().setPlaylistError(sourceId, SourceEntity.STATUS_ERROR, "Import failed") }
+    }
+
+    override suspend fun sync(): Result {
         val sourceId = inputData.getLong(SyncScheduler.KEY_SOURCE_ID, -1)
         val manual = inputData.getBoolean(SyncScheduler.KEY_MANUAL, false)
         if (sourceId < 0) return Result.failure()
@@ -78,7 +108,12 @@ class PlaylistSyncWorker(context: Context, params: WorkerParameters) : SyncWorke
 }
 
 class EpgSyncWorker(context: Context, params: WorkerParameters) : SyncWorker(context, params) {
-    override suspend fun doWork(): Result {
+    override suspend fun onUnexpectedFailure() {
+        val epgId = inputData.getLong(SyncScheduler.KEY_EPG_ID, -1)
+        if (epgId >= 0) withContext(Dispatchers.IO) { container.db.epgDao().markError(epgId, "Import failed") }
+    }
+
+    override suspend fun sync(): Result {
         val epgId = inputData.getLong(SyncScheduler.KEY_EPG_ID, -1)
         val force = inputData.getBoolean(SyncScheduler.KEY_MANUAL, false)
         if (epgId < 0) return Result.failure()
@@ -101,7 +136,7 @@ class EpgSyncWorker(context: Context, params: WorkerParameters) : SyncWorker(con
 }
 
 class PruneWorker(context: Context, params: WorkerParameters) : SyncWorker(context, params) {
-    override suspend fun doWork(): Result {
+    override suspend fun sync(): Result {
         val c = container
         val settings = c.settings.current()
         withContext(Dispatchers.IO) { c.pruner.prune(settings) }
@@ -111,8 +146,10 @@ class PruneWorker(context: Context, params: WorkerParameters) : SyncWorker(conte
 
 /** Runs every 6 hours and once at app start: enqueues the syncs that are due, then a prune. */
 class PeriodicRefreshWorker(context: Context, params: WorkerParameters) : SyncWorker(context, params) {
-    override suspend fun doWork(): Result {
+    override suspend fun sync(): Result {
         val c = container
+        // Temp files of a sync that was cut short by a process kill still hold the playlist, URLs included.
+        withContext(Dispatchers.IO) { StaleFiles.deleteOlderThan(c.syncCacheDir, StaleFiles.MAX_AGE_MS) }
         val settings = c.settings.current()
         val now = System.currentTimeMillis()
         for (s in c.db.sourceDao().getAll()) {

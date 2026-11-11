@@ -156,6 +156,7 @@ dependencies {
     testImplementation(libs.truth)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.okhttp.mockwebserver3)
+    testImplementation(libs.androidx.work.testing)
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.test.core)
     // Opt-in screenshot test (see ScreenshotTest): renders the real Compose UI on the JVM.

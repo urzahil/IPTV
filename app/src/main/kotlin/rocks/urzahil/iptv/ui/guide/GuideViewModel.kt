@@ -5,6 +5,9 @@ import androidx.lifecycle.viewModelScope
 import androidx.paging.PagingData
 import androidx.paging.cachedIn
 import java.time.ZoneId
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -23,6 +26,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.plus
 import rocks.urzahil.iptv.data.db.dao.ChannelListItem
 import rocks.urzahil.iptv.data.db.dao.ProgrammeLite
 import rocks.urzahil.iptv.data.db.entities.CategoryEntity
@@ -35,6 +39,7 @@ import rocks.urzahil.iptv.ui.guide.model.GuideBounds
 import rocks.urzahil.iptv.ui.guide.model.GuideRowKey
 import rocks.urzahil.iptv.ui.guide.model.ProgrammeCache
 import rocks.urzahil.iptv.ui.guide.model.TimeRange
+import rocks.urzahil.iptv.util.AppLog
 
 /** Whether the selected source has guide data at all. */
 sealed interface EpgAvailability {
@@ -60,7 +65,12 @@ data class ProgrammeSheetState(
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class GuideViewModel(private val c: AppContainer) : ViewModel() {
-    private val browse = BrowseState(c, viewModelScope)
+    // A failing database read or network call in a launched task must not end the process: log the class only
+    // (messages can repeat URLs) and let the screen keep what it has.
+    private val handler = CoroutineExceptionHandler { _, t -> AppLog.w(TAG, "guide task failed: ${t.javaClass.simpleName}") }
+    private val scope: CoroutineScope = viewModelScope + handler
+
+    private val browse = BrowseState(c, scope)
 
     val sources: StateFlow<List<SourceEntity>?> = browse.sources
     val currentSource: StateFlow<SourceEntity?> = browse.currentSource
@@ -77,7 +87,7 @@ class GuideViewModel(private val c: AppContainer) : ViewModel() {
     /** Scrollable time extent, from the retention settings. Null until the settings are read. */
     val bounds: StateFlow<GuideBounds?> = combine(retention, boundsClock) { (past, future), now ->
         GuideBounds.of(now, past, future, zone)
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+    }.stateIn(scope, SharingStarted.Eagerly, null)
 
     private var savedLeftEdgeMs: Long? = null
     private var savedAtMs = 0L
@@ -106,7 +116,7 @@ class GuideViewModel(private val c: AppContainer) : ViewModel() {
             list.isEmpty() -> EpgAvailability.NotConfigured
             else -> EpgAvailability.NotLoaded(list.firstNotNullOfOrNull { it.lastError })
         }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), EpgAvailability.Unknown)
+    }.stateIn(scope, SharingStarted.WhileSubscribed(5_000), EpgAvailability.Unknown)
 
     /** Bumped when guide data changed underneath the cache; the screen then reports its viewport again. */
     private val _dataVersion = MutableStateFlow(0)
@@ -120,7 +130,7 @@ class GuideViewModel(private val c: AppContainer) : ViewModel() {
 
     init {
         // A finished import (or a new channel-to-guide mapping) makes the loaded rows stale.
-        viewModelScope.launch {
+        scope.launch {
             epgSources.map { list -> list.maxOfOrNull { it.lastSyncMs } ?: 0L }.distinctUntilChanged().drop(1).collect {
                 cache.invalidate()
                 _dataVersion.value++
@@ -141,7 +151,7 @@ class GuideViewModel(private val c: AppContainer) : ViewModel() {
     fun onViewport(keys: List<GuideRowKey>, range: TimeRange) {
         ensureJob?.cancel()
         fallbackJob?.cancel()
-        ensureJob = viewModelScope.launch {
+        ensureJob = scope.launch {
             val empty = cache.ensure(keys, range)
             if (empty.isNotEmpty() && currentSource.value?.sourceType == SourceType.XTREAM) loadFallback(empty)
         }
@@ -149,7 +159,7 @@ class GuideViewModel(private val c: AppContainer) : ViewModel() {
 
     /** Provider short EPG for Xtream rows without guide data, once the viewport has settled. */
     private fun loadFallback(channelIds: List<Long>) {
-        fallbackJob = viewModelScope.launch {
+        fallbackJob = scope.launch {
             delay(FALLBACK_SETTLE_MS)
             channelIds.take(FALLBACK_MAX_ROWS).map { id ->
                 async {
@@ -166,8 +176,14 @@ class GuideViewModel(private val c: AppContainer) : ViewModel() {
             return
         }
         _sheet.value = ProgrammeSheetState(channel, programme, loading = true)
-        viewModelScope.launch {
-            val d = try { c.epgRepository.details(programme.id) } catch (e: Exception) { null }
+        scope.launch {
+            val d = try {
+                c.epgRepository.details(programme.id)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                null
+            }
             _sheet.value = _sheet.value?.takeIf { it.programme.id == programme.id && it.channel.id == channel.id }?.copy(
                 subTitle = d?.subTitle, description = d?.description, categories = d?.categories, episode = d?.episode,
                 loading = false,
@@ -180,7 +196,7 @@ class GuideViewModel(private val c: AppContainer) : ViewModel() {
     /** Manual guide refresh for the selected source. */
     fun refreshGuide() {
         val src = currentSource.value ?: return
-        viewModelScope.launch {
+        scope.launch {
             val list = c.sourceRepository.epgSourcesOf(src.id)
             if (list.isEmpty()) {
                 c.syncScheduler.syncPlaylist(src.id, manual = true, needsNetwork = src.sourceType != SourceType.M3U_FILE)
@@ -193,6 +209,7 @@ class GuideViewModel(private val c: AppContainer) : ViewModel() {
     fun retryPlaylist(sourceId: Long) { c.syncScheduler.syncPlaylist(sourceId, manual = true) }
 
     private companion object {
+        const val TAG = "GuideVM"
         const val RESTORE_WITHIN_MS = 10 * 60_000L
         const val FALLBACK_SETTLE_MS = 600L
         const val FALLBACK_MAX_ROWS = 16
