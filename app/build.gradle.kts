@@ -82,6 +82,19 @@ room {
     schemaDirectory("$projectDir/schemas")
 }
 
+// Screenshot tests are opt-in: ./gradlew :app:testDebugUnitTest -Pscreenshots --tests '*ScreenshotTest'
+val screenshotsEnabled = providers.gradleProperty("screenshots").isPresent
+tasks.withType<Test>().configureEach {
+    if (screenshotsEnabled) {
+        systemProperty("iptv.screenshots", "true")
+        systemProperty("roborazzi.test.record", "true")
+        systemProperty("iptv.screenshots.dir", rootProject.file("screenshots").absolutePath)
+        outputs.upToDateWhen { false }
+    } else {
+        exclude("**/screenshots/**")
+    }
+}
+
 // The FFmpeg decoder is built against media3 1.9.x: keep every media3 module on the same line.
 configurations.all {
     resolutionStrategy.eachDependency {
@@ -142,4 +155,9 @@ dependencies {
     testImplementation(libs.okhttp.mockwebserver3)
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.test.core)
+    // Opt-in screenshot test (see ScreenshotTest): renders the real Compose UI on the JVM.
+    testImplementation(libs.androidx.compose.ui.test.junit4)
+    testImplementation(libs.roborazzi)
+    testImplementation(libs.roborazzi.compose)
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
 }
