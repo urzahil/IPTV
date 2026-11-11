@@ -41,6 +41,7 @@ import androidx.lifecycle.viewModelScope
 import rocks.urzahil.iptv.data.settings.AppSettings
 import rocks.urzahil.iptv.di.AppContainer
 import rocks.urzahil.iptv.ui.appViewModel
+import rocks.urzahil.iptv.ui.rememberNotificationPermissionRequest
 import rocks.urzahil.iptv.ui.components.DetailScaffold
 import rocks.urzahil.iptv.ui.components.SectionHeader
 import rocks.urzahil.iptv.ui.theme.Dimens
@@ -109,6 +110,8 @@ class SettingsViewModel(private val c: AppContainer) : ViewModel() {
 fun SettingsScreen(onBack: () -> Unit) {
     val vm = appViewModel { SettingsViewModel(it) }
     val s by vm.settings.collectAsStateWithLifecycle()
+    // Background playback shows a media notification: ask for the permission when the user turns it on.
+    val askNotifications = rememberNotificationPermissionRequest()
     var uaDialog by remember { mutableStateOf(false) }
     var hoursDialog by remember { mutableStateOf<HoursTarget?>(null) }
     var choice by remember { mutableStateOf<PlayerChoice?>(null) }
@@ -197,7 +200,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                 colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                 headlineContent = { Text("Play audio in the background") },
                 supportingContent = { Text("Keeps sound going when you leave the app (not with the VLC player).") },
-                trailingContent = { Switch(checked = s.backgroundAudio, onCheckedChange = { vm.setBackgroundAudio(it) }) },
+                trailingContent = { Switch(checked = s.backgroundAudio, onCheckedChange = { vm.setBackgroundAudio(it); if (it) askNotifications() }) },
             )
             ListItem(
                 colors = ListItemDefaults.colors(containerColor = Color.Transparent),

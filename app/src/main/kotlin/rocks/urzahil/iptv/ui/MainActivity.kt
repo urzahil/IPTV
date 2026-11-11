@@ -1,16 +1,11 @@
 package rocks.urzahil.iptv.ui
 
-import android.Manifest
 import android.graphics.Color
-import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
-import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.runtime.LaunchedEffect
 import rocks.urzahil.iptv.ui.theme.IptvTheme
 
 class MainActivity : ComponentActivity() {
@@ -23,10 +18,7 @@ class MainActivity : ComponentActivity() {
         )
         setContent {
             IptvTheme {
-                val askNotifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
-                LaunchedEffect(Unit) {
-                    if (Build.VERSION.SDK_INT >= 33) askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
-                }
+                AskForNotificationsWithFirstSource()
                 AppNavHost()
             }
         }
