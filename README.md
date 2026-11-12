@@ -35,22 +35,6 @@ More: [guide (landscape)](screenshots/guide_landscape.png), [programme details](
 - Android SDK (compile/target SDK 36)
 - Device or emulator running Android 7.0 (API 24) or newer
 
-## Build and run
-
-```bash
-./gradlew :app:assembleDebug     # build a debug APK
-./gradlew :app:installDebug      # install on a connected device/emulator
-```
-
-## Test
-
-```bash
-./gradlew test
-```
-
-Unit tests cover playlist/guide importers, catch-up URL building, EPG matching,
-player retry and engine selection, and guide layout logic.
-
 ## Project structure
 
 | Module | Contents |
@@ -60,11 +44,6 @@ player retry and engine selection, and guide layout logic.
 
 Releases are built by the manually triggered workflows in `.github/workflows/`
 (`release-apk.yml`, `play-release.yml`), which require signing secrets.
-
-## Contributing
-
-Name branches `feature/<short-description>` or `fix/<short-description>` and open
-a pull request against the default branch.
 
 ## License
 
