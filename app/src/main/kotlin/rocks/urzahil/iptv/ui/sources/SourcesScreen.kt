@@ -83,7 +83,7 @@ fun SourcesScreen(
             when {
                 list == null -> LoadingView()
                 list.isEmpty() -> EmptyState(
-                    title = "No sources",
+                    title = "No sources yet",
                     message = "Add your IPTV provider as an Xtream account or an M3U playlist.",
                     actionLabel = "Add source",
                     onAction = { showAdd = true },
