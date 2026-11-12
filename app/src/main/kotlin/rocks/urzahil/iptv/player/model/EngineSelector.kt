@@ -2,8 +2,11 @@ package rocks.urzahil.iptv.player.model
 
 /** Chooses the engine for a play request and decides when to fall back from Media3 to libVLC. */
 object EngineSelector {
-    /** Schemes Media3 cannot play: straight to libVLC. */
-    val VLC_ONLY_SCHEMES = setOf("rtp", "mms", "mmsh", "mmst", "mmsu", "srt", "rist", "rtmps", "rtmpe", "rtmpt")
+    /**
+     * Schemes Media3 cannot play: straight to libVLC. RTMP is here too: Media3's RTMP module ships a
+     * native library that is not 16 KB page aligned, so it is left out and libVLC plays RTMP instead.
+     */
+    val VLC_ONLY_SCHEMES = setOf("rtp", "mms", "mmsh", "mmst", "mmsu", "srt", "rist", "rtmp", "rtmps", "rtmpe", "rtmpt")
 
     /** An automatic switch to libVLC is remembered this long. */
     const val AUTO_ENGINE_TTL_MS = 30L * 24 * 3_600_000

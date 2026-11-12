@@ -12,7 +12,7 @@ streams.
 - **Sources:** M3U/M3U8 playlists (URL) and Xtream Codes accounts, with XMLTV guide data.
 - **Channels:** browse by category, search, and mark favourites.
 - **Programme guide (EPG):** scrollable timeline grid with a "now" marker, programme details, portrait and landscape layouts, and configurable guide retention.
-- **Player:** Media3 ExoPlayer (HLS, DASH, RTSP, RTMP) with FFmpeg decoder and libVLC engines, background playback service, and Picture-in-Picture.
+- **Player:** Media3 ExoPlayer (HLS, DASH, RTSP) with FFmpeg decoder and libVLC (RTMP, RTP, SRT, MMS, ...) engines, background playback service, and Picture-in-Picture.
 - **Catch-up / timeshift:** catch-up URL templates, Xtream and Flussonic-style rewriting.
 - **Background sync:** WorkManager imports of large playlists and guides, with download caps and safe failure handling.
 
