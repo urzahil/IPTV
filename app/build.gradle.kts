@@ -1,8 +1,5 @@
-import org.jetbrains.kotlin.gradle.dsl.JvmTarget
-
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
     alias(libs.plugins.room)
@@ -12,7 +9,7 @@ val appVersionCode = 1
 
 android {
     namespace = "rocks.urzahil.iptv"
-    compileSdk = 36
+    compileSdk { version = release(37) { minorApiLevel = 2 } }
 
     defaultConfig {
         applicationId = "rocks.urzahil.iptv"
@@ -72,12 +69,6 @@ android {
     testOptions {
         unitTests.isReturnDefaultValues = true
         unitTests.isIncludeAndroidResources = true
-    }
-}
-
-kotlin {
-    compilerOptions {
-        jvmTarget.set(JvmTarget.JVM_17)
     }
 }
 

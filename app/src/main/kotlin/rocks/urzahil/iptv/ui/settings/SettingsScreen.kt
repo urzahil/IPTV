@@ -65,7 +65,8 @@ class SettingsViewModel(private val c: AppContainer) : ViewModel() {
         viewModelScope.launch {
             for (s in c.sourceRepository.getAll()) {
                 if (!s.enabled) continue
-                for (es in c.db.epgDao().sourcesOfBlocking(s.id)) c.syncScheduler.syncEpg(es.id, s.id, force = true)
+                // The DAO call blocks: go through the repository, which reads off the main thread.
+                for (es in c.sourceRepository.epgSourcesOf(s.id)) c.syncScheduler.syncEpg(es.id, s.id, force = true)
             }
         }
     }
