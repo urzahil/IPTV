@@ -232,3 +232,37 @@ class HostileInputTest {
         }
     }
 }
+
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [35], application = android.app.Application::class)
+class OversizedPlaylistSyncTest {
+    @get:Rule val tmp = TemporaryFolder()
+
+    @Test fun anOversizedPlaylistFailsPermanentlyWithACleanMessage() {
+        val db = newDb()
+        val server = MockWebServer().also { it.start() }
+        try {
+            server.enqueue(MockResponse.Builder().body("#EXTM3U " + "x".repeat(1_100_000)).build())
+            val cipher = FakeCipher()
+            val id = runBlocking {
+                db.sourceDao().insert(
+                    rocks.urzahil.iptv.data.db.entities.SourceEntity(
+                        type = SourceType.M3U_URL.name, name = "S", m3uUrlEnc = cipher.encrypt(server.url("/p.m3u").toString()),
+                    ),
+                )
+            }
+            val redactor = Redactor()
+            val runner = PlaylistSyncRunner(
+                db, OkHttpClient(), Downloader(redactor), SourceSecrets(cipher, redactor), redactor,
+                rocks.urzahil.iptv.data.net.ContentSource(androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>().contentResolver),
+                tmp.root,
+            )
+            val e = assertThrows(SyncException::class.java) { runner.run(id, AppSettings(), manual = true) }
+            assertThat(e.retryable).isFalse()
+            assertThat(e).hasMessageThat().isEqualTo("Line too long")
+            assertThat(db.sourceDao().getBlocking(id)!!.lastError).isEqualTo("Line too long")
+        } finally {
+            server.close(); db.close()
+        }
+    }
+}

@@ -1,5 +1,7 @@
 package rocks.urzahil.iptv.player.model
 
+import rocks.urzahil.iptv.core.catchup.UnsupportedCatchup
+import rocks.urzahil.iptv.core.util.StreamSchemes
 import rocks.urzahil.iptv.core.catchup.CatchupRequest
 import rocks.urzahil.iptv.core.catchup.CatchupUrl
 import rocks.urzahil.iptv.core.catchup.CatchupUrlBuilder
@@ -62,7 +64,10 @@ object CatchupRequests {
     ): CatchupUrl {
         val target = if (spec.type == CatchupType.XTREAM_API && attempt.style != null) xtream?.copy(style = attempt.style) else xtream
         val req = CatchupRequest(Math.floorDiv(startMs, 1000L), attempt.endSec, Math.floorDiv(nowMs, 1000L), catchupId)
-        return CatchupUrlBuilder.build(liveUrl, spec, req, target)
+        val built = CatchupUrlBuilder.build(liveUrl, spec, req, target)
+        // A playlist-supplied catchup template must not point at local schemes (file, content ...).
+        if (!StreamSchemes.isAllowed(built.url)) throw UnsupportedCatchup("Catchup address is not a stream address")
+        return built
     }
 }
 

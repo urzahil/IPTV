@@ -575,7 +575,8 @@ class PlaybackController(
             s.pendingInitialSeekMs = 0
         }
         s.planner?.styleToRemember()?.let { style ->
-            scope.launch(Dispatchers.IO) { sources.setTimeshiftStyle(s.inputs.source.id, style.name.lowercase()) }
+            // Main dispatcher, IO only around the write: a failure then reaches the crash handler on the main thread.
+            scope.launch { withContext(Dispatchers.IO) { sources.setTimeshiftStyle(s.inputs.source.id, style.name.lowercase()) } }
         }
         trackCheckJob?.cancel()
         trackCheckJob = scope.launch {

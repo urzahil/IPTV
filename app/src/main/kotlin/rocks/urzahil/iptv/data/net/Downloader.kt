@@ -78,10 +78,10 @@ class Downloader(private val redactor: Redactor) {
     private class TooLargeException : IOException()
 
     companion object {
-        /** Largest accepted playlist (decoded bytes as written to disk). */
-        const val PLAYLIST_MAX_BYTES = 64L * 1024 * 1024
+        /** Largest accepted playlist (decoded bytes as written to disk; a full panel M3U with VOD is large). The parsers stream, so this only protects cache space. */
+        const val PLAYLIST_MAX_BYTES = 512L * 1024 * 1024
         /** Largest accepted XMLTV download. */
-        const val EPG_MAX_BYTES = 256L * 1024 * 1024
+        const val EPG_MAX_BYTES = 1024L * 1024 * 1024
         const val TOO_LARGE = "File is too large"
         private const val BUFFER = 64 * 1024
     }

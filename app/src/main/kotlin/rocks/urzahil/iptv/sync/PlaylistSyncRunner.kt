@@ -1,5 +1,6 @@
 package rocks.urzahil.iptv.sync
 
+import rocks.urzahil.iptv.core.io.InputLimitException
 import rocks.urzahil.iptv.core.m3u.M3uParseException
 import rocks.urzahil.iptv.core.util.Redactor
 import rocks.urzahil.iptv.core.xtream.XtreamException
@@ -74,6 +75,7 @@ class PlaylistSyncRunner(
     private fun classify(e: Exception): SyncException = when (e) {
         is XtreamException, is M3uParseException -> SyncException(redactor.redact(e.message), retryable = false)
         is SecurityException -> SyncException("The file is no longer accessible. Pick it again.", retryable = false)
+        is InputLimitException -> SyncException(e.message ?: "Playlist is malformed", retryable = false)
         is IOException -> SyncException(redactor.redact(e), retryable = true)
         else -> SyncException(redactor.redact(e), retryable = false)
     }

@@ -99,4 +99,16 @@ class CatchupPlannerTest {
         assertThat(ProgrammeList.nowIndex(rows)).isEqualTo(2)
         assertThat(ProgrammeList.build(slots, nowMs, 0, null).map { it.state }[1]).isEqualTo(RowState.PAST_UNAVAILABLE)
     }
+
+    @Test fun catchupTemplateWithALocalSchemeIsRejected() {
+        val planner = CatchupAttemptPlanner(E, N, xtreamApi = false, savedStyle = TimeshiftStyle.PATH)
+        for (src in listOf("file:///data/x?s={utc}", "content://media/{utc}", "android.resource://p/1")) {
+            val spec = CatchupSpec(CatchupType.DEFAULT, src, 7, 0, ZoneId.of("UTC"))
+            org.junit.Assert.assertThrows(UnsupportedCatchup::class.java) {
+                CatchupRequests.build("http://h/live/1.ts", spec, null, S * 1000, N * 1000, planner.current)
+            }
+        }
+        val ok = CatchupSpec(CatchupType.DEFAULT, "http://h/arch/{utc}.ts", 7, 0, ZoneId.of("UTC"))
+        assertThat(CatchupRequests.build("http://h/live/1.ts", ok, null, S * 1000, N * 1000, planner.current).url).startsWith("http://h/arch/")
+    }
 }

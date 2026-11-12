@@ -77,7 +77,7 @@ class DownloaderTest {
     }
 
     @Test fun defaultLimitsMatchTheDocumentedCaps() {
-        assertThat(Downloader.PLAYLIST_MAX_BYTES).isEqualTo(64L * 1024 * 1024)
-        assertThat(Downloader.EPG_MAX_BYTES).isEqualTo(256L * 1024 * 1024)
+        assertThat(Downloader.PLAYLIST_MAX_BYTES).isEqualTo(512L * 1024 * 1024)
+        assertThat(Downloader.EPG_MAX_BYTES).isEqualTo(1024L * 1024 * 1024)
     }
 }
