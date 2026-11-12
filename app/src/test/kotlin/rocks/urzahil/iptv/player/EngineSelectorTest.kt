@@ -26,11 +26,10 @@ class EngineSelectorTest {
         assertThat(choose().kind).isEqualTo(EngineKind.MEDIA3)
         assertThat(choose("rtsp").kind).isEqualTo(EngineKind.MEDIA3)
         assertThat(choose("udp").kind).isEqualTo(EngineKind.MEDIA3)
-        assertThat(choose("rtmp").kind).isEqualTo(EngineKind.MEDIA3)
     }
 
     @Test fun unsupportedSchemesGoStraightToVlc() {
-        for (s in listOf("rtp", "mms", "mmsh", "SRT")) assertThat(choose(s).kind).isEqualTo(EngineKind.VLC)
+        for (s in listOf("rtp", "rtmp", "mms", "mmsh", "SRT")) assertThat(choose(s).kind).isEqualTo(EngineKind.VLC)
     }
 
     @Test fun channelOverridesGlobalOverridesAuto() {
