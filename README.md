@@ -15,7 +15,6 @@ streams.
 - **Player:** Media3 ExoPlayer (HLS, DASH, RTSP, RTMP) with FFmpeg decoder and libVLC engines, background playback service, and Picture-in-Picture.
 - **Catch-up / timeshift:** catch-up URL templates, Xtream and Flussonic-style rewriting.
 - **Background sync:** WorkManager imports of large playlists and guides, with download caps and safe failure handling.
-- **Privacy:** source credentials are redacted from logs.
 
 ## Screenshots
 
