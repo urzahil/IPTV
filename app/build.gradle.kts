@@ -5,7 +5,7 @@ plugins {
     alias(libs.plugins.room)
 }
 
-val appVersionCode = 4
+val appVersionCode = 5
 
 android {
     namespace = "rocks.urzahil.iptv"
@@ -16,7 +16,7 @@ android {
         minSdk = 24
         targetSdk = 36
         versionCode = appVersionCode
-        versionName = "0.1.3"
+        versionName = "0.1.4"
 
         // One APK, ARM only: libVLC and the FFmpeg decoder are the bulk of the size.
         ndk { abiFilters += listOf("armeabi-v7a", "arm64-v8a") }
