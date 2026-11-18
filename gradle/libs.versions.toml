@@ -7,6 +7,7 @@ composeBom = "2026.09.00"
 materialIconsExtended = "1.7.8"
 activityCompose = "1.13.0"
 coreKtx = "1.19.1"
+fragment = "1.9.1"
 lifecycle = "2.11.0"
 navigationCompose = "2.9.8"
 paging = "3.3.6"
@@ -37,6 +38,9 @@ androidx-compose-ui-tooling = { module = "androidx.compose.ui:ui-tooling" }
 androidx-compose-material-icons-extended = { module = "androidx.compose.material:material-icons-extended", version.ref = "materialIconsExtended" }
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
+# Not used directly: libvlc-all pulls androidx.fragment:fragment:1.0.0 (via legacy-support-v4),
+# which Google Play flags as outdated. Declaring it here upgrades the transitive version.
+androidx-fragment = { module = "androidx.fragment:fragment", version.ref = "fragment" }
 androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycle" }
 androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycle" }
 androidx-navigation-compose = { module = "androidx.navigation:navigation-compose", version.ref = "navigationCompose" }

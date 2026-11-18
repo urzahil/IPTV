@@ -141,6 +141,8 @@ dependencies {
     implementation(libs.media3.session)
     implementation(libs.jellyfin.media3.ffmpeg)
     implementation(libs.libvlc.all)
+    // Upgrades the outdated androidx.fragment:fragment:1.0.0 that libvlc-all pulls in transitively.
+    implementation(libs.androidx.fragment)
 
     testImplementation(libs.junit)
     testImplementation(libs.truth)
