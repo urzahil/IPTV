@@ -27,23 +27,34 @@ jobs:
 
       # Robolectric downloads its Android SDK jars from Maven Central at test time. That download is the usual
       # cause of random "MavenArtifactFetcher / IOException" test failures, so keep the jars between runs.
-      - name: Cache Robolectric SDK jars
-        uses: actions/cache@v4
+      - name: Restore Robolectric SDK jars
+        id: robolectric-cache
+        uses: actions/cache/restore@v4
         with:
           path: ~/.m2/repository/org/robolectric
           key: robolectric-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml', 'app/src/test/**/*.kt') }}
           restore-keys: |
             robolectric-${{ runner.os }}-
 
-      # A cold cache can still hit a transient download error: retry the whole build a few times. Real test or
-      # lint failures fail every attempt, so they are still reported.
+      # A cold cache can still hit a transient download error: retry the whole build with a growing pause
+      # (immediate retries hit the same outage). Real test or lint failures fail every attempt, so they are
+      # still reported.
       - name: Unit tests and lint
         shell: bash
         run: |
-          for attempt in 1 2 3; do
+          for attempt in 1 2 3 4; do
             if ./gradlew :core:test :app:testDebugUnitTest lintDebug; then
               exit 0
             fi
             echo "::warning::Attempt $attempt failed"
+            [ "$attempt" -lt 4 ] && sleep $((attempt * 30))
           done
           exit 1
+
+      # Save even when the build failed, so jars downloaded by a partial run are reused next time.
+      - name: Save Robolectric SDK jars
+        if: always() && steps.robolectric-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.m2/repository/org/robolectric
+          key: ${{ steps.robolectric-cache.outputs.cache-primary-key }}
