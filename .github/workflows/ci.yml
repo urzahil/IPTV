@@ -25,5 +25,25 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
 
+      # Robolectric downloads its Android SDK jars from Maven Central at test time. That download is the usual
+      # cause of random "MavenArtifactFetcher / IOException" test failures, so keep the jars between runs.
+      - name: Cache Robolectric SDK jars
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository/org/robolectric
+          key: robolectric-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml', 'app/src/test/**/*.kt') }}
+          restore-keys: |
+            robolectric-${{ runner.os }}-
+
+      # A cold cache can still hit a transient download error: retry the whole build a few times. Real test or
+      # lint failures fail every attempt, so they are still reported.
       - name: Unit tests and lint
-        run: ./gradlew :core:test :app:testDebugUnitTest lintDebug
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            if ./gradlew :core:test :app:testDebugUnitTest lintDebug; then
+              exit 0
+            fi
+            echo "::warning::Attempt $attempt failed"
+          done
+          exit 1
