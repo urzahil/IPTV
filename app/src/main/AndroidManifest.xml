@@ -18,7 +18,6 @@
         (e.g. Ethernet-only TV boxes, Chromebooks, XR). Neither is essential, so mark them optional.
     -->
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
-    <uses-feature android:name="android.software.leanback" android:required="false" />
     <uses-feature android:name="android.hardware.wifi" android:required="false" />
     <uses-feature android:name="android.hardware.screen.landscape" android:required="false" />
 
