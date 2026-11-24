@@ -699,8 +699,6 @@ class PlaybackController(
         }
     }
 
-    private companion object { const val DIAGNOSE_MAX_BYTES = 256L * 1024 }
-
     private suspend fun diagnose(s: Session): String? {
         val t = s.inputs.xtreamTarget ?: return null
         return withContext(Dispatchers.IO) {
@@ -797,6 +795,7 @@ class PlaybackController(
 
     private companion object {
         const val TAG = "Playback"
+        const val DIAGNOSE_MAX_BYTES = 256L * 1024
         const val TRACK_CHECK_DELAY_MS = 2_000L
         const val GUIDE_REFRESH_MS = 5 * 60_000L
     }

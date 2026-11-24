@@ -245,7 +245,7 @@ internal class AudioFocusHelper(
         when (change) {
             AudioManager.AUDIOFOCUS_LOSS -> { wasPlaying = false; onPause() }
             // Only resume what was actually playing: a stream the user paused must stay paused.
-            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> { wasPlaying = isPlaying(); onPause() }
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> { wasPlaying = wasPlaying || isPlaying(); onPause() }
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> onDuck(true)
             AudioManager.AUDIOFOCUS_GAIN -> { onDuck(false); if (wasPlaying) { wasPlaying = false; onResume() } }
         }

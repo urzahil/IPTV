@@ -36,6 +36,16 @@ class EpgSourceManager(private val db: AppDatabase, private val secrets: SourceS
      * so they are removed explicitly before the cascade; channels mapped to it are re-mapped afterwards.
      */
     fun removeSource(id: Long) {
+        // Wait for an in-flight import (it swaps programmes in under this lock) so none lands after the delete.
+        EpgImporter.STAGING_LOCK.lock()
+        try {
+            removeSourceLocked(id)
+        } finally {
+            EpgImporter.STAGING_LOCK.unlock()
+        }
+    }
+
+    private fun removeSourceLocked(id: Long) {
         val ownerId = dao.getSource(id)?.ownerSourceId
         for (chunk in dao.channelIdsOfEpgSource(id).chunked(200)) {
             db.runInTransaction {

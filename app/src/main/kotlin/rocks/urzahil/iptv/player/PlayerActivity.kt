@@ -150,8 +150,10 @@ class PlayerActivity : ComponentActivity() {
         super.onStop()
         // Audio may only continue in the background when the foreground service is (about to be) up; otherwise
         // it would play without a notification or controls.
-        if (isInPictureInPictureMode && !isFinishing) {
-            // onStop while in PiP means the user dismissed the PiP window: that ends playback.
+        val interactive = (getSystemService(POWER_SERVICE) as android.os.PowerManager).isInteractive
+        if (isInPictureInPictureMode && !isFinishing && interactive) {
+            // onStop while in PiP with the screen on means the user dismissed the PiP window: that ends playback.
+            // (A screen lock also stops the activity; that case falls through to the background-audio path.)
             PlaybackService.stop(this)
             controller.stopAll()
             return

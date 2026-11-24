@@ -5,6 +5,7 @@ import java.io.File
 import java.io.IOException
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import kotlinx.coroutines.InternalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.CancellationException
@@ -21,6 +22,7 @@ sealed interface DownloadResult {
  * [maxBytes] is aborted and its partial file removed.
  */
 class Downloader(private val redactor: Redactor) {
+    @OptIn(InternalCoroutinesApi::class)
     fun download(
         client: OkHttpClient,
         url: String,
@@ -44,7 +46,7 @@ class Downloader(private val redactor: Redactor) {
         val tmp = File(dest.parentFile, dest.name + ".part")
         val call = client.newCall(req)
         // Cancelling the coroutine must also abort a read that is blocked on the socket.
-        val handle = job?.invokeOnCompletion { if (it != null) call.cancel() }
+        val handle = job?.invokeOnCompletion(onCancelling = true, invokeImmediately = true) { if (it != null) call.cancel() }
         return try {
             call.execute().use { resp ->
                 when {
