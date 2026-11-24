@@ -59,7 +59,7 @@ class VlcEngine(private val context: Context, config: EngineConfig) : PlayerEngi
     private var layout: VLCVideoLayout? = null
     private var released = false
     private var live = true
-    private val focus = AudioFocusHelper(context, onPause = { pause() }, onResume = { play() }, onDuck = { duck -> setDuck(duck) })
+    private val focus = AudioFocusHelper(context, isPlaying = { _playing.value }, onPause = { pause() }, onResume = { play() }, onDuck = { duck -> setDuck(duck) })
     private val noisy = object : BroadcastReceiver() {
         override fun onReceive(c: Context, i: Intent) { if (i.action == AudioManager.ACTION_AUDIO_BECOMING_NOISY) pause() }
     }
@@ -232,6 +232,7 @@ class VlcEngine(private val context: Context, config: EngineConfig) : PlayerEngi
 /** Audio focus for libVLC (Media3 handles its own). */
 internal class AudioFocusHelper(
     context: Context,
+    private val isPlaying: () -> Boolean,
     private val onPause: () -> Unit,
     private val onResume: () -> Unit,
     private val onDuck: (Boolean) -> Unit,
@@ -242,8 +243,9 @@ internal class AudioFocusHelper(
 
     private val listener = AudioManager.OnAudioFocusChangeListener { change ->
         when (change) {
-            AudioManager.AUDIOFOCUS_LOSS -> onPause()
-            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> { wasPlaying = true; onPause() }
+            AudioManager.AUDIOFOCUS_LOSS -> { wasPlaying = false; onPause() }
+            // Only resume what was actually playing: a stream the user paused must stay paused.
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> { wasPlaying = isPlaying(); onPause() }
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> onDuck(true)
             AudioManager.AUDIOFOCUS_GAIN -> { onDuck(false); if (wasPlaying) { wasPlaying = false; onResume() } }
         }

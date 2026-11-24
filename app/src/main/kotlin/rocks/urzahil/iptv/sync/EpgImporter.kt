@@ -72,6 +72,7 @@ class EpgImporter(
                 client, url, headers,
                 if (force) null else es.etag, if (force) null else es.lastModified, file,
                 maxBytes = Downloader.EPG_MAX_BYTES,
+                job = job,
             )
             when (dl) {
                 is DownloadResult.NotModified -> {
@@ -236,7 +237,7 @@ class EpgImporter(
                         idMap.getValue(lower)
                     }
                     val keep = PrunerWindow.keepPastDays(settings.epgPastDays, pastByChannel[lower] ?: 0)
-                    if (p.endMs >= PrunerWindow.pastCutoffMs(nowMs, keep)) {
+                    if (p.endMs >= PrunerWindow.retainFromMs(nowMs, keep)) {
                         val id = ProgrammeId.compose(chId, p.startMs)
                         var flags = 0
                         val hasDetails = p.subTitle != null || p.desc != null || p.categories != null ||

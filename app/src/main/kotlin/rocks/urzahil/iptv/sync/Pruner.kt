@@ -16,13 +16,13 @@ class Pruner(private val db: AppDatabase) {
     fun prune(settings: AppSettings, nowMs: Long = System.currentTimeMillis()) {
         val refs = db.channelDao().epgReferences().associate { it.epgChannelId to it.maxCatchupDays }
         val programmes = db.programmeDao()
-        val futureCut = PrunerWindow.futureCutoffMs(nowMs, settings.epgFutureDays)
+        val futureCut = PrunerWindow.retainUntilMs(nowMs, settings.epgFutureDays)
 
         for (chunk in db.epgDao().allChannelIds().chunked(200)) {
             db.runInTransaction {
                 for (id in chunk) {
                     val keep = PrunerWindow.keepPastDays(settings.epgPastDays, refs[id] ?: 0)
-                    val cut = PrunerWindow.pastCutoffMs(nowMs, keep)
+                    val cut = PrunerWindow.retainFromMs(nowMs, keep)
                     val all = ProgrammeId.channelRange(id)
                     programmes.deleteEndedBefore(all.first, ProgrammeId.compose(id, cut), cut)
                     programmes.deleteRange(ProgrammeId.compose(id, futureCut) + 1, all.last)

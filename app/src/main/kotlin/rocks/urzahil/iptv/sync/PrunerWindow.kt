@@ -17,6 +17,17 @@ object PrunerWindow {
 
     /** Programmes that start after this instant are dropped. */
     fun futureCutoffMs(nowMs: Long, futureDays: Int): Long = nowMs + futureDays * DAY_MS
+
+    /** Largest tvg-shift (hours either way) a playlist can sensibly carry; it is applied at read time. */
+    const val SHIFT_PAD_MS = 14L * 3_600_000L
+
+    /**
+     * Cut-offs used when importing and pruning: [pastCutoffMs] / [futureCutoffMs] widened by [SHIFT_PAD_MS], because a
+     * channel with `tvg-shift="+4"` airs raw programmes 4 hours later than their XMLTV times.
+     */
+    fun retainFromMs(nowMs: Long, keepPastDays: Int): Long = pastCutoffMs(nowMs, keepPastDays) - SHIFT_PAD_MS
+
+    fun retainUntilMs(nowMs: Long, futureDays: Int): Long = futureCutoffMs(nowMs, futureDays) + SHIFT_PAD_MS
 }
 
 /** When periodic refreshes are due (pure, unit tested). An interval of 0 means manual refresh only. */

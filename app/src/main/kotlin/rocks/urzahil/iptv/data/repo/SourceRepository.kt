@@ -195,7 +195,7 @@ class SourceRepository(
         epgSources.addUserUrl(ownerId, u)
     }
 
-    suspend fun removeEpgSource(id: Long) = db.epgDao().deleteSource(id)
+    suspend fun removeEpgSource(id: Long) = withContext(Dispatchers.IO) { epgSources.removeSource(id) }
 
     // ---- login test ----
 
@@ -208,7 +208,13 @@ class SourceRepository(
         redactor.register(creds.password)
         val ua = StreamHeaders.sanitizeValue(form.userAgent).ifEmpty { settings.current().defaultUserAgent }
         try {
-            val auth = XtreamImporter(db, client).login(creds, mapOf("User-Agent" to ua))
+            val auth = XtreamImporter(db, client).login(
+                creds,
+                buildMap {
+                    put("User-Agent", ua)
+                    StreamHeaders.sanitizeValue(form.referrer).takeIf { it.isNotEmpty() }?.let { put("Referer", it) }
+                },
+            )
             XtreamLoginResult.Ok(
                 auth.account.status,
                 auth.account.expiresAtSec?.takeIf { it > 0 }?.times(1000),

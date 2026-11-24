@@ -138,7 +138,9 @@ class PlayerActivity : ComponentActivity() {
             // Stop now: onDestroy can come seconds later and must not be what ends the audio.
             stoppedOnFinish = true
             controller.stopAll()
-        } else if (settings.backgroundAudio && controller.engine.value?.kind == EngineKind.MEDIA3) {
+        } else if (!isInPictureInPictureMode && settings.backgroundAudio && controller.engine.value?.kind == EngineKind.MEDIA3) {
+            // (Not in PiP: the window is still visible there, and starting the service would make a dismissed
+            // PiP window look like a request to keep playing in the background.)
             // Promote to a foreground service while still in the foreground: it is not allowed from the background.
             PlaybackService.start(this)
         }
@@ -148,6 +150,12 @@ class PlayerActivity : ComponentActivity() {
         super.onStop()
         // Audio may only continue in the background when the foreground service is (about to be) up; otherwise
         // it would play without a notification or controls.
+        if (isInPictureInPictureMode && !isFinishing) {
+            // onStop while in PiP means the user dismissed the PiP window: that ends playback.
+            PlaybackService.stop(this)
+            controller.stopAll()
+            return
+        }
         if (!isFinishing) controller.onUiStopped(keepAudio = settings.backgroundAudio && PlaybackService.isActiveOrStarting())
     }
 

@@ -87,6 +87,35 @@ class M3uImporterTest {
         assertThat(db.categoryDao().getAllBlocking(src.id).sumOf { it.channelCount }).isEqualTo(2)
     }
 
+    @Test fun emptyOrHtmlResponseKeepsExistingChannelsAndFavourites() {
+        val src = db.addSource()
+        import(src, playlist)
+        val alpha = runBlocking { db.channelDao().keyRows(src.id).first { it.providerKey.contains("|Alpha|") } }
+        runBlocking { db.favouriteDao().insert(FavouriteEntity(alpha.id, 1)) }
+        val synced = db.sourceDao().getBlocking(src.id)!!
+
+        for (body in listOf("", "<html><body>Maintenance</body></html>")) {
+            val failed = runCatching { import(synced, body) }.exceptionOrNull()
+            assertThat(failed).isInstanceOf(rocks.urzahil.iptv.core.m3u.M3uParseException::class.java)
+        }
+        assertThat(db.channelDao().keyRows(src.id)).hasSize(5)
+        assertThat(runBlocking { db.favouriteDao().isFavourite(alpha.id) }).isEqualTo(1)
+    }
+
+    @Test fun disabledSourceIsHiddenFromFavouritesRecentsAndSearch() {
+        val src = db.addSource()
+        import(src, playlist)
+        val alpha = db.channelDao().keyRows(src.id).first { it.providerKey.contains("|Alpha|") }
+        runBlocking {
+            db.favouriteDao().insert(FavouriteEntity(alpha.id, 1))
+            db.sourceDao().setEnabled(src.id, false)
+            assertThat(db.channelDao().searchNorm("alpha", true)).isEmpty()
+            assertThat(db.channelDao().searchFts("alp*", true)).isEmpty()
+            db.sourceDao().setEnabled(src.id, true)
+            assertThat(db.channelDao().searchNorm("alpha", true)).hasSize(1)
+        }
+    }
+
     @Test fun searchFindsByPrefixAndDiacritics() {
         val src = db.addSource()
         import(src, "#EXTM3U\n#EXTINF:-1,Das Erste HD\nhttp://s/1\n#EXTINF:-1,Café Télé\nhttp://s/2\n")

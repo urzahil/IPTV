@@ -22,13 +22,31 @@ class EpgSourceManager(private val db: AppDatabase, private val secrets: SourceS
             else -> {
                 val urls = headerUrls.filter { it.startsWith("http://", true) || it.startsWith("https://", true) }
                 val hashes = urls.map { hash(it) }
-                dao.deleteHeaderSourcesExcept(source.id, hashes)
+                for (id in dao.headerSourceIdsExcept(source.id, hashes)) removeSource(id)
                 urls.forEachIndexed { i, u ->
                     ensure(source.id, EpgKind.URL, hash(u), display(u), secrets.encrypt(u), HEADER_PRIORITY + i, false)
                 }
             }
         }
         return dao.sourcesOfBlocking(source.id).map { it.id }
+    }
+
+    /**
+     * Deletes an EPG source together with its programmes. Programmes have no foreign key to epg_channels,
+     * so they are removed explicitly before the cascade; channels mapped to it are re-mapped afterwards.
+     */
+    fun removeSource(id: Long) {
+        val ownerId = dao.getSource(id)?.ownerSourceId
+        for (chunk in dao.channelIdsOfEpgSource(id).chunked(200)) {
+            db.runInTransaction {
+                for (ch in chunk) {
+                    val r = rocks.urzahil.iptv.core.epg.ProgrammeId.channelRange(ch)
+                    db.programmeDao().deleteRange(r.first, r.last)
+                }
+            }
+        }
+        dao.deleteSourceBlocking(id)
+        if (ownerId != null) EpgMapper(db).map(ownerId)
     }
 
     fun addUserUrl(ownerId: Long, url: String): Long {

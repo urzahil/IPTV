@@ -64,6 +64,9 @@ class XtreamImporter(private val db: AppDatabase, private val client: OkHttpClie
             }
         }
         job?.ensureActive()
+        if (writer.channelCount == 0 && source.channelCount > 0) {
+            throw XtreamException("The server returned no channels; kept the existing ones")
+        }
         val result = PlaylistImportResult(writer.channelCount, writer.categoryCount, 0, 0, emptyList())
         db.runInTransaction {
             writer.finish()
@@ -138,7 +141,7 @@ class XtreamImporter(private val db: AppDatabase, private val client: OkHttpClie
                 logoUrl = s.icon,
                 xtreamStreamId = s.streamId,
                 tvgId = s.epgChannelId,
-                catchupType = if (catchup) CatchupType.XTREAM_API.ordinal else CatchupType.NONE.ordinal,
+                catchupType = if (catchup) CatchupType.XTREAM_API.code else CatchupType.NONE.code,
                 catchupDays = if (catchup) s.tvArchiveDuration.coerceAtMost(30) else 0,
                 isRadio = s.streamType == "radio_streams",
             )

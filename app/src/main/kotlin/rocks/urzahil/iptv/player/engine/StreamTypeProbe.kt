@@ -37,6 +37,8 @@ object StreamTypeProbe {
         }
     }
 
+    private const val PROBE_BYTES = 512
+
     fun mimeOf(kind: StreamKind): String? = when (kind) {
         StreamKind.HLS -> "hls"
         StreamKind.DASH -> "dash"
@@ -53,7 +55,14 @@ object StreamTypeProbe {
                 c.newCall(req).execute().use { resp ->
                     if (!resp.isSuccessful) return@use null
                     val buf = ByteArray(4096)
-                    val n = resp.body.byteStream().read(buf).coerceAtLeast(0)
+                    val stream = resp.body.byteStream()
+                    // One read can return a single 188-byte TS packet; collect enough to see the next sync byte.
+                    var n = 0
+                    while (n < PROBE_BYTES) {
+                        val r = stream.read(buf, n, PROBE_BYTES - n)
+                        if (r < 0) break
+                        n += r
+                    }
                     classify(resp.header("Content-Type"), buf, n)
                 }
             } catch (e: Exception) {

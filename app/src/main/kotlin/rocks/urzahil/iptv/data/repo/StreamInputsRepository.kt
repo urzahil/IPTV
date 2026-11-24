@@ -48,7 +48,7 @@ class StreamInputsRepository(
         headers = headers.merge(StreamHeaders(userAgent = src.userAgent, referrer = src.referrer))
         headers = headers.merge(StreamHeadersJson.decode(ch.headersJson))
 
-        val type = CatchupType.entries.getOrElse(ch.catchupType) { CatchupType.NONE }
+        val type = CatchupType.fromCode(ch.catchupType)
         var tz: java.time.ZoneId = ZoneOffset.UTC
         var target: XtreamTarget? = null
         val url: String

@@ -31,6 +31,7 @@ class SourcesViewModel(private val c: AppContainer) : ViewModel() {
     }
 
     fun setEnabled(s: SourceEntity, enabled: Boolean) {
+        if (!enabled) c.syncScheduler.cancelSource(s.id)
         viewModelScope.launch { c.sourceRepository.setEnabled(s.id, enabled) }
     }
 
@@ -139,7 +140,10 @@ class SourceEditorViewModel(private val c: AppContainer) : ViewModel() {
         }
     }
 
-    fun removeEpg(id: Long) { viewModelScope.launch { repo.removeEpgSource(id) } }
+    fun removeEpg(id: Long) {
+        c.syncScheduler.cancelEpg(id)
+        viewModelScope.launch { repo.removeEpgSource(id) }
+    }
 
     fun consumeSaveError() { _save.value = SaveState.Idle }
 }

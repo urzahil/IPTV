@@ -88,26 +88,29 @@ class ShortEpgRepository(
         val creds = secrets.xtreamCredentials(src) ?: return emptyList()
         val zone = XtreamTime.parseZone(src.effectiveTz) ?: ZoneOffset.UTC
         val ua = src.userAgent?.takeIf { it.isNotBlank() } ?: settings.current().defaultUserAgent
+        val referrer = src.referrer
         // The full table includes past programmes (needed to pick a catchup programme); older panels only
         // implement the short list.
         val table = try {
-            XtreamParser.parseShortEpg(get(XtreamUrls.simpleDataTable(creds.base, creds.username, creds.password, streamId), ua), zone)
+            XtreamParser.parseShortEpg(get(XtreamUrls.simpleDataTable(creds.base, creds.username, creds.password, streamId), ua, referrer), zone)
         } catch (e: IOException) {
             emptyList() // not implemented by every panel: the short list below decides whether this is a failure
         } catch (e: XtreamException) {
             emptyList()
         }
         if (table.isNotEmpty()) return table
-        return XtreamParser.parseShortEpg(get(XtreamUrls.shortEpg(creds.base, creds.username, creds.password, streamId, SHORT_LIMIT), ua), zone)
+        return XtreamParser.parseShortEpg(get(XtreamUrls.shortEpg(creds.base, creds.username, creds.password, streamId, SHORT_LIMIT), ua, referrer), zone)
     }
 
     /**
      * Body of a successful response. Throws [IOException] for an error status or a body over [MAX_BYTES]; the
      * message names neither the URL nor the credentials (the URL carries both).
      */
-    private fun get(url: String, userAgent: String): String {
+    private fun get(url: String, userAgent: String, referrer: String?): String {
         val req = try {
-            Request.Builder().url(url).header("User-Agent", StreamHeaders.sanitizeValue(userAgent)).build()
+            Request.Builder().url(url).header("User-Agent", StreamHeaders.sanitizeValue(userAgent)).apply {
+                referrer?.let(StreamHeaders::sanitizeValue)?.takeIf { it.isNotEmpty() }?.let { header("Referer", it) }
+            }.build()
         } catch (e: IllegalArgumentException) {
             throw IOException("Invalid request")
         }

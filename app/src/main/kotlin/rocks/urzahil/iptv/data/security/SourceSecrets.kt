@@ -12,6 +12,10 @@ data class XtreamCredentials(val base: String, val username: String, val passwor
 }
 
 /** The only place stored credentials and URLs are decrypted. Decrypted secrets are registered with the [Redactor]. */
+private val BENIGN_KEYS = setOf(
+    "type", "output", "format", "extension", "action", "limit", "lang", "language", "live", "mode", "version", "tz", "timezone",
+)
+
 class SourceSecrets(private val cipher: SecretCipher, private val redactor: Redactor) {
     fun encrypt(plain: String): String = cipher.encrypt(plain)
 
@@ -54,8 +58,10 @@ class SourceSecrets(private val cipher: SecretCipher, private val redactor: Reda
         val q = url.substringAfter('?', "").substringBefore('#')
         if (q.isEmpty()) return
         for (pair in q.split('&')) {
+            val key = pair.substringBefore('=').lowercase()
             val v = pair.substringAfter('=', "")
-            if (v.length >= 3) redactor.register(Urls.decode(v))
+            // Benign parameters (type=m3u_plus, output=hls, ...) must not turn common words into secrets.
+            if (v.length >= 3 && key !in BENIGN_KEYS) redactor.register(Urls.decode(v))
         }
     }
 }

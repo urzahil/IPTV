@@ -96,6 +96,7 @@ class PlaylistSyncRunner(
             val dl = downloader.download(
                 client, url, headers,
                 if (manual) null else source.playlistEtag, if (manual) null else source.playlistLastModified, file,
+                job = job,
             )
             return when (dl) {
                 is DownloadResult.Failed -> throw SyncException(dl.message, dl.retryable)
