@@ -309,13 +309,13 @@ class EpgImporter(
         }
     }
 
-    private companion object {
+    companion object {
         /** Process-wide: there is one database and one pair of staging tables. */
         val STAGING_LOCK = ReentrantLock()
-        const val LOCK_POLL_MS = 200L
-        const val BATCH = 2000
-        const val CHANNEL_BATCH = 500
-        const val BUFFER = 64 * 1024
-        const val MAX_DESC = 1000
+        private const val LOCK_POLL_MS = 200L
+        private const val BATCH = 2000
+        private const val CHANNEL_BATCH = 500
+        private const val BUFFER = 64 * 1024
+        private const val MAX_DESC = 1000
     }
 }
