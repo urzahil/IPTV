@@ -54,8 +54,14 @@ class SourceSecrets(private val cipher: SecretCipher, private val redactor: Reda
         val q = url.substringAfter('?', "").substringBefore('#')
         if (q.isEmpty()) return
         for (pair in q.split('&')) {
+            val key = pair.substringBefore('=').lowercase()
             val v = pair.substringAfter('=', "")
-            if (v.length >= 3) redactor.register(Urls.decode(v))
+            // Benign parameters (type=m3u_plus, output=hls, ...) must not turn common words into secrets.
+            if (v.length >= 3 && key !in BENIGN_KEYS) redactor.register(Urls.decode(v))
         }
     }
 }
+
+private val BENIGN_KEYS = setOf(
+    "type", "output", "format", "extension", "action", "limit", "lang", "language", "live", "mode", "version", "tz", "timezone",
+)

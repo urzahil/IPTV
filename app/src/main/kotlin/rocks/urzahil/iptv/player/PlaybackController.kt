@@ -167,7 +167,8 @@ class PlaybackController(
     fun zap(direction: ZapDirection) {
         val s = session ?: return
         launchOp {
-            val next = channels.neighbour(s.info.id, s.categoryId, direction) ?: return@launchOp
+            val app = settings.current()
+            val next = channels.neighbour(s.info.id, s.categoryId, direction, app.showRadio, app.sortByNumber) ?: return@launchOp
             channels.markWatched(next)
             start(PlayRequest(next, s.categoryId))
         }
@@ -702,8 +703,16 @@ class PlaybackController(
         val t = s.inputs.xtreamTarget ?: return null
         return withContext(Dispatchers.IO) {
             try {
-                val req = Request.Builder().url(XtreamUrls.account(t.base, t.user, t.pass)).build()
-                val body = http.newCall(req).execute().use { it.body.string() }
+                val req = Request.Builder().url(XtreamUrls.account(t.base, t.user, t.pass)).apply {
+                    s.inputs.headers.userAgent?.let { header("User-Agent", it) }
+                    s.inputs.headers.referrer?.let { header("Referer", it) }
+                }.build()
+                val body = http.newCall(req).execute().use { resp ->
+                    // The account document is small; a hostile or broken server must not make us buffer more.
+                    val src = resp.body.source()
+                    if (src.request(DIAGNOSE_MAX_BYTES + 1)) return@use null
+                    src.readUtf8()
+                } ?: return@withContext null
                 AccountDiagnosis.explain(XtreamParser.parseAuth(body).account, clock() / 1000)
             } catch (e: Exception) {
                 null
@@ -786,6 +795,7 @@ class PlaybackController(
 
     private companion object {
         const val TAG = "Playback"
+        const val DIAGNOSE_MAX_BYTES = 256L * 1024
         const val TRACK_CHECK_DELAY_MS = 2_000L
         const val GUIDE_REFRESH_MS = 5 * 60_000L
     }

@@ -72,6 +72,7 @@ class EpgImporter(
                 client, url, headers,
                 if (force) null else es.etag, if (force) null else es.lastModified, file,
                 maxBytes = Downloader.EPG_MAX_BYTES,
+                job = job,
             )
             when (dl) {
                 is DownloadResult.NotModified -> {
@@ -236,7 +237,7 @@ class EpgImporter(
                         idMap.getValue(lower)
                     }
                     val keep = PrunerWindow.keepPastDays(settings.epgPastDays, pastByChannel[lower] ?: 0)
-                    if (p.endMs >= PrunerWindow.pastCutoffMs(nowMs, keep)) {
+                    if (p.endMs >= PrunerWindow.retainFromMs(nowMs, keep)) {
                         val id = ProgrammeId.compose(chId, p.startMs)
                         var flags = 0
                         val hasDetails = p.subTitle != null || p.desc != null || p.categories != null ||
@@ -308,13 +309,13 @@ class EpgImporter(
         }
     }
 
-    private companion object {
+    companion object {
         /** Process-wide: there is one database and one pair of staging tables. */
         val STAGING_LOCK = ReentrantLock()
-        const val LOCK_POLL_MS = 200L
-        const val BATCH = 2000
-        const val CHANNEL_BATCH = 500
-        const val BUFFER = 64 * 1024
-        const val MAX_DESC = 1000
+        private const val LOCK_POLL_MS = 200L
+        private const val BATCH = 2000
+        private const val CHANNEL_BATCH = 500
+        private const val BUFFER = 64 * 1024
+        private const val MAX_DESC = 1000
     }
 }

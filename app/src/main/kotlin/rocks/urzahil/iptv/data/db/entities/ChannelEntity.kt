@@ -35,7 +35,7 @@ data class ChannelEntity(
     val tvgId: String? = null,
     val tvgName: String? = null,
     val shiftMin: Int = 0,
-    /** Ordinal of [rocks.urzahil.iptv.core.model.CatchupType]. */
+    /** Stable [rocks.urzahil.iptv.core.model.CatchupType.code]. */
     val catchupType: Int = 0,
     val catchupSource: String? = null,
     val catchupDays: Int = 0,

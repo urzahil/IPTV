@@ -34,6 +34,15 @@ interface EpgDao {
     @Query("DELETE FROM epg_sources WHERE id = :id")
     suspend fun deleteSource(id: Long)
 
+    @Query("SELECT id FROM epg_channels WHERE epgSourceId = :epgSourceId")
+    fun channelIdsOfEpgSource(epgSourceId: Long): List<Long>
+
+    @Query("SELECT id FROM epg_sources WHERE ownerSourceId = :ownerId AND userAdded = 0 AND kind = 'URL' AND urlHash NOT IN (:keepHashes)")
+    fun headerSourceIdsExcept(ownerId: Long, keepHashes: List<String>): List<Long>
+
+    @Query("DELETE FROM epg_sources WHERE id = :id")
+    fun deleteSourceBlocking(id: Long)
+
     /** Header-derived (non user-added) sources that are no longer listed in the playlist header. */
     @Query("DELETE FROM epg_sources WHERE ownerSourceId = :ownerId AND userAdded = 0 AND kind = 'URL' AND urlHash NOT IN (:keepHashes)")
     fun deleteHeaderSourcesExcept(ownerId: Long, keepHashes: List<String>): Int

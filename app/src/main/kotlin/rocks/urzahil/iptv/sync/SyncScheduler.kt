@@ -83,6 +83,10 @@ class SyncScheduler(context: Context) {
             }
         }
 
+    fun cancelEpg(epgSourceId: Long) {
+        wm.cancelUniqueWork(epgName(epgSourceId))
+    }
+
     fun cancelSource(sourceId: Long) {
         wm.cancelAllWorkByTag(sourceTag(sourceId))
     }

@@ -3,6 +3,7 @@ package rocks.urzahil.iptv.sync
 import rocks.urzahil.iptv.core.epg.NameNormalizer
 import rocks.urzahil.iptv.core.io.Compression
 import rocks.urzahil.iptv.core.io.LimitedInputStream
+import rocks.urzahil.iptv.core.m3u.M3uParseException
 import rocks.urzahil.iptv.core.m3u.M3uParser
 import rocks.urzahil.iptv.core.model.ParsedChannel
 import rocks.urzahil.iptv.core.util.StreamSchemes
@@ -53,6 +54,11 @@ class M3uImporter(private val db: AppDatabase) {
             }
         }
         job?.ensureActive()
+        // An empty result (maintenance/captive-portal page, transient outage) must not wipe a working source:
+        // finish() would delete every channel and cascade to favourites, recents and preferences.
+        if (writer.channelCount == 0 && source.channelCount > 0) {
+            throw M3uParseException("The playlist contained no channels; kept the existing ones")
+        }
         db.runInTransaction {
             writer.finish()
             db.sourceDao().setPlaylistOk(
@@ -81,7 +87,7 @@ class M3uImporter(private val db: AppDatabase) {
             tvgId = ch.tvgId,
             tvgName = ch.tvgName,
             shiftMin = ch.shiftMin,
-            catchupType = ch.catchup.type.ordinal,
+            catchupType = ch.catchup.type.code,
             catchupSource = ch.catchup.source,
             catchupDays = if (ch.catchup.enabled) ch.catchup.days else 0,
             catchupCorrectionSec = ch.catchup.correctionSec,

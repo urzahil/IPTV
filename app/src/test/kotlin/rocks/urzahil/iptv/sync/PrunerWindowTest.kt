@@ -22,6 +22,13 @@ class PrunerWindowTest {
         assertThat(PrunerWindow.keepPastDays(0, 7)).isEqualTo(0)
     }
 
+    @Test fun retentionIsWidenedForTvgShift() {
+        // tvg-shift="+4": a programme that ended 1h ago in XMLTV time airs 3h from now.
+        assertThat(PrunerWindow.retainFromMs(now, 0)).isLessThan(now - 4 * 3_600_000L)
+        assertThat(PrunerWindow.retainFromMs(now, 3)).isEqualTo(now - 3 * day - PrunerWindow.SHIFT_PAD_MS)
+        assertThat(PrunerWindow.retainUntilMs(now, 3)).isEqualTo(now + 3 * day + PrunerWindow.SHIFT_PAD_MS)
+    }
+
     @Test fun futureCutoff() {
         assertThat(PrunerWindow.futureCutoffMs(now, 3)).isEqualTo(now + 3 * day)
     }

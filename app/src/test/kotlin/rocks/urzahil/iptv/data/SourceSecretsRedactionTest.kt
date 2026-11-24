@@ -10,6 +10,13 @@ class SourceSecretsRedactionTest {
     private val redactor = Redactor()
     private val secrets = SourceSecrets(FakeCipher(), redactor)
 
+    @Test fun benignQueryValuesAreNotTreatedAsSecrets() {
+        secrets.registerUrlSecrets("http://host.example/get.php?username=u&password=hunter22&type=m3u_plus&output=hls")
+        val out = redactor.redact("hls playlist m3u_plus failed with password hunter22")
+        assertThat(out).contains("hls playlist m3u_plus")
+        assertThat(out).doesNotContain("hunter22")
+    }
+
     @Test fun pathCredentialsOfAnXtreamStyleM3uUrlAreMasked() {
         val url = "http://host.example:8080/alice77/s3cretPass/123.ts"
         // Without registration the Redactor's /live/ pattern does not match this shape.

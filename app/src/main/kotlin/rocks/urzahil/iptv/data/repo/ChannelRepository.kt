@@ -64,21 +64,24 @@ class ChannelRepository(private val db: AppDatabase) {
      * Zapping neighbour inside the category the user launched from (wraps around), or inside the source when
      * [categoryId] is null. Returns null when the list has a single channel.
      */
-    suspend fun neighbour(channelId: Long, categoryId: Long?, direction: ZapDirection): Long? {
-        val id = if (categoryId != null) {
-            val pos = channels.positionIn(categoryId, channelId) ?: return null
-            when (direction) {
-                ZapDirection.NEXT -> channels.nextAfter(categoryId, pos) ?: channels.firstIn(categoryId)
-                ZapDirection.PREVIOUS -> channels.previousBefore(categoryId, pos) ?: channels.lastIn(categoryId)
-            }
+    suspend fun neighbour(
+        channelId: Long,
+        categoryId: Long?,
+        direction: ZapDirection,
+        showRadio: Boolean = true,
+        sortByNumber: Boolean = false,
+    ): Long? {
+        val order = if (categoryId != null) {
+            channels.zapIdsInCategory(categoryId, showRadio, sortByNumber)
         } else {
             val c = channels.get(channelId) ?: return null
-            when (direction) {
-                ZapDirection.NEXT -> channels.nextInSource(c.sourceId, c.sortIndex)
-                ZapDirection.PREVIOUS -> channels.previousInSource(c.sourceId, c.sortIndex)
-            }
+            channels.zapIdsInSource(c.sourceId, showRadio, sortByNumber)
         }
-        return id?.takeIf { it != channelId }
+        val i = order.indexOf(channelId)
+        if (i < 0) return order.firstOrNull()?.takeIf { it != channelId }
+        if (order.size < 2) return null
+        val step = if (direction == ZapDirection.NEXT) 1 else -1
+        return order[(i + step + order.size) % order.size]
     }
 
     suspend fun findByNumber(sourceId: Long, number: Int): Long? = channels.findByNumber(sourceId, number)

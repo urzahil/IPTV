@@ -73,24 +73,28 @@ interface ChannelDao {
 
     @Query(
         "SELECT $COLS FROM favourites fv JOIN channels c ON c.id = fv.channelId $FAV_JOIN " +
-            "WHERE c.hidden = 0 AND (:showRadio = 1 OR c.isRadio = 0) ORDER BY fv.position",
+            "JOIN sources s ON s.id = c.sourceId " +
+            "WHERE s.enabled = 1 AND c.hidden = 0 AND (:showRadio = 1 OR c.isRadio = 0) ORDER BY fv.position",
     )
     fun observeFavourites(showRadio: Boolean): Flow<List<ChannelListItem>>
 
     @Query(
         "SELECT $COLS FROM recents r JOIN channels c ON c.id = r.channelId $FAV_JOIN " +
-            "WHERE c.hidden = 0 AND (:showRadio = 1 OR c.isRadio = 0) ORDER BY r.lastWatchedMs DESC LIMIT :limit",
+            "JOIN sources s ON s.id = c.sourceId " +
+            "WHERE s.enabled = 1 AND c.hidden = 0 AND (:showRadio = 1 OR c.isRadio = 0) ORDER BY r.lastWatchedMs DESC LIMIT :limit",
     )
     fun observeRecents(showRadio: Boolean, limit: Int): Flow<List<ChannelListItem>>
 
     @Query(
-        "SELECT $COLS FROM channels c $FAV_JOIN WHERE c.hidden = 0 AND (:showRadio = 1 OR c.isRadio = 0) AND c.id IN " +
+        "SELECT $COLS FROM channels c $FAV_JOIN JOIN sources s ON s.id = c.sourceId " +
+            "WHERE s.enabled = 1 AND c.hidden = 0 AND (:showRadio = 1 OR c.isRadio = 0) AND c.id IN " +
             "(SELECT rowid FROM channels_fts WHERE channels_fts MATCH :ftsQuery) ORDER BY c.sourceId, c.sortIndex LIMIT 300",
     )
     suspend fun searchFts(ftsQuery: String, showRadio: Boolean): List<ChannelListItem>
 
     @Query(
-        "SELECT $COLS FROM channels c $FAV_JOIN WHERE c.hidden = 0 AND (:showRadio = 1 OR c.isRadio = 0) " +
+        "SELECT $COLS FROM channels c $FAV_JOIN JOIN sources s ON s.id = c.sourceId " +
+            "WHERE s.enabled = 1 AND c.hidden = 0 AND (:showRadio = 1 OR c.isRadio = 0) " +
             "AND c.nameNorm LIKE '%' || :norm || '%' ORDER BY c.sourceId, c.sortIndex LIMIT 300",
     )
     suspend fun searchNorm(norm: String, showRadio: Boolean): List<ChannelListItem>
@@ -111,6 +115,23 @@ interface ChannelDao {
 
     @Query("SELECT channelId FROM channel_category WHERE categoryId = :categoryId ORDER BY position DESC LIMIT 1")
     suspend fun lastIn(categoryId: Long): Long?
+
+    /** Zapping order: the visible channels of a category, in the order the list shows them. */
+    @Query(
+        "SELECT c.id FROM channel_category cc JOIN channels c ON c.id = cc.channelId " +
+            "WHERE cc.categoryId = :categoryId AND c.hidden = 0 AND (:showRadio = 1 OR c.isRadio = 0) " +
+            "ORDER BY CASE WHEN :byNumber = 1 THEN (c.number IS NULL) ELSE 0 END, " +
+            "CASE WHEN :byNumber = 1 THEN c.number ELSE 0 END, cc.position",
+    )
+    suspend fun zapIdsInCategory(categoryId: Long, showRadio: Boolean, byNumber: Boolean): List<Long>
+
+    /** Zapping order: the visible channels of a source, in the order the list shows them. */
+    @Query(
+        "SELECT id FROM channels c WHERE c.sourceId = :sourceId AND c.hidden = 0 AND (:showRadio = 1 OR c.isRadio = 0) " +
+            "ORDER BY CASE WHEN :byNumber = 1 THEN (c.number IS NULL) ELSE 0 END, " +
+            "CASE WHEN :byNumber = 1 THEN c.number ELSE 0 END, c.sortIndex",
+    )
+    suspend fun zapIdsInSource(sourceId: Long, showRadio: Boolean, byNumber: Boolean): List<Long>
 
     @Query("SELECT id FROM channels WHERE sourceId = :sourceId AND sortIndex > :sortIndex AND hidden = 0 ORDER BY sortIndex LIMIT 1")
     suspend fun nextInSource(sourceId: Long, sortIndex: Int): Long?

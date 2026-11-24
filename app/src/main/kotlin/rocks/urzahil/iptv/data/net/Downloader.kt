@@ -5,6 +5,10 @@ import java.io.File
 import java.io.IOException
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import kotlinx.coroutines.InternalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.CancellationException
 
 sealed interface DownloadResult {
     data object NotModified : DownloadResult
@@ -18,6 +22,7 @@ sealed interface DownloadResult {
  * [maxBytes] is aborted and its partial file removed.
  */
 class Downloader(private val redactor: Redactor) {
+    @OptIn(InternalCoroutinesApi::class)
     fun download(
         client: OkHttpClient,
         url: String,
@@ -27,6 +32,7 @@ class Downloader(private val redactor: Redactor) {
         dest: File,
         maxBytes: Long = PLAYLIST_MAX_BYTES,
         onProgress: ((bytes: Long) -> Unit)? = null,
+        job: Job? = null,
     ): DownloadResult {
         val req = try {
             Request.Builder().url(url).apply {
@@ -38,8 +44,11 @@ class Downloader(private val redactor: Redactor) {
             return DownloadResult.Failed("Invalid address", retryable = false)
         }
         val tmp = File(dest.parentFile, dest.name + ".part")
+        val call = client.newCall(req)
+        // Cancelling the coroutine must also abort a read that is blocked on the socket.
+        val handle = job?.invokeOnCompletion(onCancelling = true, invokeImmediately = true) { if (it != null) call.cancel() }
         return try {
-            client.newCall(req).execute().use { resp ->
+            call.execute().use { resp ->
                 when {
                     resp.code == 304 -> DownloadResult.NotModified
                     !resp.isSuccessful -> DownloadResult.Failed("HTTP ${resp.code}", retryable = resp.code >= 500 || resp.code == 429)
@@ -51,6 +60,7 @@ class Downloader(private val redactor: Redactor) {
                             tmp.outputStream().buffered(BUFFER).use { out ->
                                 val buf = ByteArray(BUFFER)
                                 while (true) {
+                                    job?.ensureActive()
                                     val n = input.read(buf)
                                     if (n < 0) break
                                     out.write(buf, 0, n)
@@ -66,12 +76,18 @@ class Downloader(private val redactor: Redactor) {
                     }
                 }
             }
+        } catch (e: CancellationException) {
+            tmp.delete()
+            throw e
         } catch (e: TooLargeException) {
             tmp.delete()
             DownloadResult.Failed(TOO_LARGE, retryable = false)
         } catch (e: IOException) {
             tmp.delete()
+            job?.ensureActive()
             DownloadResult.Failed(redactor.redact(e), retryable = true)
+        } finally {
+            handle?.dispose()
         }
     }
 
